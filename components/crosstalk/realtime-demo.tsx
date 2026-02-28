@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useTranscription } from "@/hooks/use-transcription"
 import { useTranslation } from "@/hooks/use-translation"
+import { useTTS } from "@/hooks/use-tts"
 import { LanguageSelector } from "@/components/ui/language-selector"
 
 interface Message {
@@ -249,6 +250,8 @@ export function RealtimeDemo() {
     }
   }
 
+  const { playText, playingId, loadingId } = useTTS()
+
   const hasMessages = messages.length > 0
 
   return (
@@ -360,6 +363,18 @@ export function RealtimeDemo() {
                           {msg.translationMs}ms
                         </span>
                       ) : null}
+                      <button
+                        onClick={() => playText(msg.id, msg.translated, msg.targetLanguage)}
+                        className="ml-1 hover:text-foreground transition-colors"
+                      >
+                        {loadingId === msg.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : playingId === msg.id ? (
+                          <Pause className="w-3 h-3" />
+                        ) : (
+                          <Volume2 className="w-3 h-3" />
+                        )}
+                      </button>
                     </div>
                     <div className={`border px-4 py-3 rounded-sm rounded-bl-none max-w-[85%] text-sm leading-relaxed ${msg.isTranslating ? 'border-yellow-500 bg-yellow-50' : 'border-border text-foreground/80'}`}>
                       {msg.isTranslating ? (
@@ -431,6 +446,18 @@ export function RealtimeDemo() {
                           {msg.translationMs}ms
                         </span>
                       ) : null}
+                      <button
+                        onClick={() => playText(msg.id, msg.translated, msg.targetLanguage)}
+                        className="ml-1 hover:text-foreground transition-colors"
+                      >
+                        {loadingId === msg.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : playingId === msg.id ? (
+                          <Pause className="w-3 h-3" />
+                        ) : (
+                          <Volume2 className="w-3 h-3" />
+                        )}
+                      </button>
                     </div>
                     <div className="border border-border px-4 py-3 rounded-sm rounded-bl-none max-w-[85%] text-sm leading-relaxed text-foreground/80">
                       {msg.translated}
