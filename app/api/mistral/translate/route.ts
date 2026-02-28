@@ -7,9 +7,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    if (!body.text || !body.target_language) {
+    if (!body.text || (!body.target_language && !body.languages)) {
       return NextResponse.json(
-        { error: 'Missing required fields: text and target_language' },
+        { error: 'Missing required fields: text and target_language or languages' },
         { status: 400 }
       )
     }
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
           { role: 'system', content: prompt },
           { role: 'user', content: body.text }
         ],
-        temperature: 0.1,
+        temperature: 0.85,
         max_tokens: 500,
         response_format: { type: 'json_object' },
       }),
