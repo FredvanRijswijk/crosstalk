@@ -26,6 +26,7 @@ interface Message {
   targetLanguage: string
   confidence: number
   isTranslating?: boolean
+  translationMs?: number
 }
 
 function WaveBar({ active }: { active: boolean }) {
@@ -93,6 +94,7 @@ export function RealtimeDemo() {
     isTranslating,
     translation,
     detectedLanguage: translationDetectedLang,
+    translationMs,
     sourceLanguage,
     targetLanguage,
     error: translationError,
@@ -196,14 +198,15 @@ export function RealtimeDemo() {
       sourceLanguage: translationDetectedLang,
       targetLanguage: correctTarget,
       confidence: 0.95,
-      isTranslating: false
+      isTranslating: false,
+      translationMs
     }
 
     pendingCommitRef.current = null
     setMessages(prev => [...prev, newMessage])
     setCurrentSpeaker(null)
     setLiveText('')
-  }, [translation, translationDetectedLang, determineSpeaker])
+  }, [translation, translationDetectedLang, translationMs, determineSpeaker])
 
   useEffect(() => {
     leftRef.current?.scrollTo({ top: leftRef.current.scrollHeight, behavior: "smooth" })
@@ -352,6 +355,11 @@ export function RealtimeDemo() {
                     <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
                       <Volume2 className="w-3 h-3" />
                       Translated
+                      {msg.translationMs ? (
+                        <span className={`ml-1 ${msg.translationMs < 500 ? 'text-green-500' : msg.translationMs < 1000 ? 'text-yellow-500' : 'text-red-400'}`}>
+                          {msg.translationMs}ms
+                        </span>
+                      ) : null}
                     </div>
                     <div className={`border px-4 py-3 rounded-sm rounded-bl-none max-w-[85%] text-sm leading-relaxed ${msg.isTranslating ? 'border-yellow-500 bg-yellow-50' : 'border-border text-foreground/80'}`}>
                       {msg.isTranslating ? (
@@ -418,6 +426,11 @@ export function RealtimeDemo() {
                     <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
                       <Volume2 className="w-3 h-3" />
                       Translated
+                      {msg.translationMs ? (
+                        <span className={`ml-1 ${msg.translationMs < 500 ? 'text-green-500' : msg.translationMs < 1000 ? 'text-yellow-500' : 'text-red-400'}`}>
+                          {msg.translationMs}ms
+                        </span>
+                      ) : null}
                     </div>
                     <div className="border border-border px-4 py-3 rounded-sm rounded-bl-none max-w-[85%] text-sm leading-relaxed text-foreground/80">
                       {msg.translated}

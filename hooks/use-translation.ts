@@ -7,6 +7,7 @@ export function useTranslation() {
   const [detectedLanguage, setDetectedLanguage] = useState<string>('');
   const [sourceLanguage, setSourceLanguage] = useState<string>('');
   const [targetLanguage, setTargetLanguage] = useState<string>('');
+  const [translationMs, setTranslationMs] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [mistralService, setMistralService] = useState<MistralService | null>(null);
   
@@ -32,6 +33,7 @@ export function useTranslation() {
       setDetectedLanguage(result.detectedLanguage);
       setSourceLanguage(result.sourceLanguage);
       setTargetLanguage(result.targetLanguage);
+      setTranslationMs(result.translationMs);
     });
     
     return () => {
@@ -68,6 +70,7 @@ export function useTranslation() {
     isTranslating,
     translation,
     detectedLanguage,
+    translationMs,
     sourceLanguage,
     targetLanguage,
     error,

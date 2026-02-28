@@ -13,6 +13,7 @@ export interface TranslationResult {
   sourceLanguage: string;
   targetLanguage: string;
   timestamp: number;
+  translationMs: number;
 }
 
 type TranslationCallback = (result: TranslationResult) => void;
@@ -62,15 +63,17 @@ export class MistralService {
         { headers }
       );
 
+      const elapsed = Math.round(performance.now() - startTime);
+
       const result: TranslationResult = {
         text: response.data.translation,
         detectedLanguage: response.data.detected_language || sourceLang,
         sourceLanguage: sourceLang,
         targetLanguage: targetLang,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        translationMs: elapsed
       };
 
-      const elapsed = Math.round(performance.now() - startTime);
       console.log(`✅ Translation complete (${elapsed}ms): "${result.text}"`);
       
       // Notify all callbacks with the translation result
