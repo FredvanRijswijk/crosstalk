@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { NextRequest } from 'next/server'
 
+// Edge runtime — lower latency, no cold starts
+export const runtime = 'edge'
+
 const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || ''
 
 export async function POST(request: NextRequest) {
@@ -23,12 +26,12 @@ export async function POST(request: NextRequest) {
 
     const sourceLang = body.source_language || 'auto'
     const targetLang = body.target_language
-    const languages = body.languages // e.g. ["nl", "en"] — the two conversation languages
+    const languages = body.languages
 
-    // Build prompt: if we know both languages, ask to detect and translate to the OTHER one
+    // Minimal prompt — fewer tokens = faster response
     const prompt = languages && languages.length === 2
-      ? `You are a professional translator. The conversation uses ${languages[0]} and ${languages[1]}. Detect which of these two languages the input text is in, then translate it to the OTHER language. Respond in this exact JSON format: {"detected":"<ISO 639-1 code>","translation":"<translated text>"}. Nothing else.`
-      : `You are a professional translator. Detect the language of the input text and translate it to ${targetLang}. Respond in this exact JSON format: {"detected":"<ISO 639-1 language code>","translation":"<translated text>"}. Nothing else.`
+      ? `Translator. Input is ${languages[0]} or ${languages[1]}. Detect which, translate to the other. Reply: LANG|translation. LANG is ISO 639-1 code. No quotes, no explanation.`
+      : `Translate to ${targetLang}. Reply: LANG|translation. LANG is detected ISO 639-1 code. No quotes, no explanation.`
 
     const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
       method: 'POST',
@@ -42,9 +45,8 @@ export async function POST(request: NextRequest) {
           { role: 'system', content: prompt },
           { role: 'user', content: body.text }
         ],
-        temperature: 0.85,
-        max_tokens: 500,
-        response_format: { type: 'json_object' },
+        temperature: 0.3,
+        max_tokens: 200,
       }),
     })
 
@@ -60,15 +62,22 @@ export async function POST(request: NextRequest) {
     const data = await response.json()
     const content = data.choices?.[0]?.message?.content?.trim() || ''
 
+    // Parse "LANG|translation" format
     let translation = ''
     let detectedLang = sourceLang
-    try {
-      const parsed = JSON.parse(content)
-      translation = parsed.translation || ''
-      detectedLang = parsed.detected || sourceLang
-    } catch {
-      // Fallback if JSON parse fails
-      translation = content
+    const pipeIdx = content.indexOf('|')
+    if (pipeIdx !== -1 && pipeIdx <= 5) {
+      detectedLang = content.slice(0, pipeIdx).trim().toLowerCase()
+      translation = content.slice(pipeIdx + 1).trim()
+    } else {
+      // Fallback: try JSON parse (backwards compat)
+      try {
+        const parsed = JSON.parse(content)
+        translation = parsed.translation || ''
+        detectedLang = parsed.detected || sourceLang
+      } catch {
+        translation = content
+      }
     }
 
     return NextResponse.json({
