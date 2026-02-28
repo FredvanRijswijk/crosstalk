@@ -228,6 +228,14 @@ export function RealtimeDemo() {
     if (!pending) return
 
     const spk = determineSpeaker(translationDetectedLang)
+
+    // Auto-update language selector if detected language differs
+    if (spk === 'left' && translationDetectedLang !== leftLangRef.current) {
+      setLeftLanguage(translationDetectedLang)
+    } else if (spk === 'right' && translationDetectedLang !== rightLangRef.current) {
+      setRightLanguage(translationDetectedLang)
+    }
+
     const correctTarget = spk === 'left' ? rightLangRef.current : leftLangRef.current
 
     const newMessage: Message = {
