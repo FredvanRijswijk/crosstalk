@@ -6,13 +6,16 @@ const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || "";
 const MISTRAL_WS_URL = "wss://api.mistral.ai/v1/audio/transcriptions/realtime";
 const MODEL = "voxtral-mini-transcribe-realtime-2602";
 const TARGET_DELAY_MS = 240; // sub-200ms not always stable, 240 is sweet spot
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "http://localhost:3000").split(",");
 
-const httpServer = createServer((_req, res) => {
+const httpServer = createServer((req, res) => {
+  const origin = req.headers.origin || "";
+  const corsOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   res.writeHead(200, {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": corsOrigin,
     "Content-Type": "application/json",
   });
-  res.end(`{"status":"ok","model":"${MODEL}"}`);
+  res.end('{"status":"ok"}');
 });
 
 // Disable per-message compression — adds CPU latency per frame, not worth it for small audio packets
@@ -20,6 +23,10 @@ const wss = new WebSocketServer({
   server: httpServer,
   perMessageDeflate: false,
   maxPayload: 512 * 1024, // 512KB max per message
+  verifyClient: ({ origin }: { origin?: string }) => {
+    if (!origin) return true; // allow non-browser clients (e.g. testing)
+    return ALLOWED_ORIGINS.includes(origin);
+  },
 });
 
 wss.on("connection", (clientWs) => {

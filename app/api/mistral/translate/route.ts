@@ -1,37 +1,51 @@
 import { NextResponse } from 'next/server'
 import { NextRequest } from 'next/server'
 
-// Edge runtime — lower latency, no cold starts
 export const runtime = 'edge'
 
 const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || ''
+
+const ALLOWED_DOMAINS = new Set([
+  'medical/healthcare',
+  'legal/immigration/bureaucratic',
+  'hospitality/hotel/restaurant',
+  'emergency/911/urgent medical',
+  'education/academic/classroom',
+  'business/corporate/formal',
+  'travel/tourism/directions',
+  'healthcare/elderly care/simple language',
+])
+
+const MAX_TEXT_LENGTH = 2000
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    if (!body.text || (!body.target_language && !body.languages)) {
-      return NextResponse.json(
-        { error: 'Missing required fields: text and target_language or languages' },
-        { status: 400 }
-      )
+    if (!body.text || typeof body.text !== 'string') {
+      return NextResponse.json({ error: 'Missing text' }, { status: 400 })
+    }
+
+    if (body.text.length > MAX_TEXT_LENGTH) {
+      return NextResponse.json({ error: `Text too long (max ${MAX_TEXT_LENGTH} chars)` }, { status: 400 })
+    }
+
+    if (!body.target_language && !body.languages) {
+      return NextResponse.json({ error: 'Missing target_language or languages' }, { status: 400 })
     }
 
     if (!MISTRAL_API_KEY) {
-      return NextResponse.json(
-        { error: 'MISTRAL_API_KEY not configured' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Translation service not configured' }, { status: 500 })
     }
 
     const sourceLang = body.source_language || 'auto'
     const targetLang = body.target_language
     const languages = body.languages
 
-    const domain = body.domain || ''
+    // Validate domain against allowlist
+    const domain = body.domain && ALLOWED_DOMAINS.has(body.domain) ? body.domain : ''
     const domainHint = domain ? ` Use ${domain} terminology.` : ''
 
-    // Minimal prompt — fewer tokens = faster response
     const prompt = languages && languages.length === 2
       ? `Translator. Input is ${languages[0]} or ${languages[1]}. Detect which, translate to the other.${domainHint} Reply: LANG|translation. LANG is ISO 639-1 code. No quotes, no explanation.`
       : `Translate to ${targetLang}.${domainHint} Reply: LANG|translation. LANG is detected ISO 639-1 code. No quotes, no explanation.`
@@ -54,18 +68,13 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Mistral translation error:', response.status, errorText)
-      return NextResponse.json(
-        { error: `Mistral API error: ${response.status}` },
-        { status: response.status }
-      )
+      console.error('Mistral translation error:', response.status)
+      return NextResponse.json({ error: 'Translation service error' }, { status: 502 })
     }
 
     const data = await response.json()
     const content = data.choices?.[0]?.message?.content?.trim() || ''
 
-    // Parse "LANG|translation" format
     let translation = ''
     let detectedLang = sourceLang
     const pipeIdx = content.indexOf('|')
@@ -73,7 +82,6 @@ export async function POST(request: NextRequest) {
       detectedLang = content.slice(0, pipeIdx).trim().toLowerCase()
       translation = content.slice(pipeIdx + 1).trim()
     } else {
-      // Fallback: try JSON parse (backwards compat)
       try {
         const parsed = JSON.parse(content)
         translation = parsed.translation || ''
@@ -94,9 +102,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Translation API error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

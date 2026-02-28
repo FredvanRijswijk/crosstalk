@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 
 const MISTRAL_API_URL = 'https://api.mistral.ai/v1/audio/transcriptions'
 const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || ''
+const MAX_AUDIO_BYTES = 5 * 1024 * 1024 // 5MB
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,22 +11,28 @@ export async function POST(request: NextRequest) {
 
     if (!body.audio || !body.model) {
       return NextResponse.json(
-        { error: 'Missing required fields: audio and model are required' },
+        { error: 'Missing required fields: audio and model' },
         { status: 400 }
       )
     }
 
+    if (typeof body.audio !== 'string') {
+      return NextResponse.json({ error: 'Invalid audio format' }, { status: 400 })
+    }
+
     if (!MISTRAL_API_KEY) {
+      return NextResponse.json({ error: 'Transcription service not configured' }, { status: 500 })
+    }
+
+    const audioBuffer = Buffer.from(body.audio, 'base64')
+
+    if (audioBuffer.length > MAX_AUDIO_BYTES) {
       return NextResponse.json(
-        { error: 'MISTRAL_API_KEY not configured' },
-        { status: 500 }
+        { error: `Audio too large (max ${MAX_AUDIO_BYTES / 1024 / 1024}MB)` },
+        { status: 400 }
       )
     }
 
-    // Decode base64 audio to a buffer
-    const audioBuffer = Buffer.from(body.audio, 'base64')
-
-    // Build multipart form data for Mistral API
     const formData = new FormData()
     const audioBlob = new Blob([audioBuffer], { type: 'audio/webm' })
     formData.append('file', audioBlob, 'audio.webm')
@@ -44,12 +51,8 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Mistral API error:', response.status, errorText)
-      return NextResponse.json(
-        { error: `Mistral API error: ${response.status}`, details: errorText },
-        { status: response.status }
-      )
+      console.error('Mistral API error:', response.status)
+      return NextResponse.json({ error: 'Transcription service error' }, { status: 502 })
     }
 
     const data = await response.json()
@@ -57,7 +60,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       text: data.text || '',
       language: data.language || 'unknown',
-      confidence: 0.95, // Mistral doesn't return confidence, use high default
+      confidence: 0.95,
       timestamp: Date.now(),
       model: data.model || body.model,
       status: 'success'
@@ -65,17 +68,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Voxstral API error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
-
-export function GET() {
-  return NextResponse.json({
-    message: 'Voxstral API - Use POST to /api/voxstral/transcribe with audio data',
-    available_models: ['voxtral-mini-latest'],
-    status: 'ok'
-  })
 }

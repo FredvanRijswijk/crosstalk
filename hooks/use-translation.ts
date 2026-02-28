@@ -34,6 +34,7 @@ export function useTranslation() {
       setSourceLanguage(result.sourceLanguage);
       setTargetLanguage(result.targetLanguage);
       setTranslationMs(result.translationMs);
+      setIsTranslating(false);
     });
     
     return () => {

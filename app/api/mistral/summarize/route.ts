@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 export const runtime = 'edge'
 
 const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || ''
+const MAX_MESSAGES = 100
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,8 +13,12 @@ export async function POST(request: NextRequest) {
       return new Response(JSON.stringify({ error: 'Missing messages array' }), { status: 400 })
     }
 
+    if (messages.length > MAX_MESSAGES) {
+      return new Response(JSON.stringify({ error: `Too many messages (max ${MAX_MESSAGES})` }), { status: 400 })
+    }
+
     if (!MISTRAL_API_KEY) {
-      return new Response(JSON.stringify({ error: 'MISTRAL_API_KEY not configured' }), { status: 500 })
+      return new Response(JSON.stringify({ error: 'Summary service not configured' }), { status: 500 })
     }
 
     const transcript = messages.map((m: { speaker: string; sourceLanguage: string; original: string; targetLanguage: string; translated: string }) =>
@@ -38,9 +43,8 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errText = await response.text()
-      console.error('Mistral summarize error:', response.status, errText)
-      return new Response(JSON.stringify({ error: `Mistral API error: ${response.status}` }), { status: response.status })
+      console.error('Mistral summarize error:', response.status)
+      return new Response(JSON.stringify({ error: 'Summary service error' }), { status: 502 })
     }
 
     const data = await response.json()

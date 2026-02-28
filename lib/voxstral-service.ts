@@ -9,6 +9,11 @@ type TranscriptionCallback = (result: TranscriptionResult) => void;
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080';
 
+// Warn if using unencrypted ws:// in production
+if (typeof window !== 'undefined' && WS_URL.startsWith('ws://') && window.location.protocol === 'https:') {
+  console.warn('[voxstral] WARNING: using unencrypted ws:// over HTTPS. Set NEXT_PUBLIC_WS_URL to wss://');
+}
+
 export class VoxstralService {
   private mediaStream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;

@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 
+const MAX_CACHE = 50
+
 export function useTTS() {
   const [playingId, setPlayingId] = useState<number | null>(null)
   const [loadingId, setLoadingId] = useState<number | null>(null)
@@ -27,6 +29,14 @@ export function useTTS() {
 
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
+
+    // Evict oldest entry if cache is full
+    if (cacheRef.current.size >= MAX_CACHE) {
+      const oldest = cacheRef.current.keys().next().value!
+      URL.revokeObjectURL(cacheRef.current.get(oldest)!)
+      cacheRef.current.delete(oldest)
+    }
+
     cacheRef.current.set(key, url)
     return url
   }, [])

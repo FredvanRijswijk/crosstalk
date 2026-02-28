@@ -14,16 +14,34 @@ const VOICE_MAP: Record<string, { voiceId: string; model: string }> = {
 
 const DEFAULT_VOICE = { voiceId: 'pNInz6obpgDQGcFmaJgB', model: 'eleven_multilingual_v2' }
 
+// Allowlist of valid voice IDs
+const ALLOWED_VOICE_IDS = new Set([
+  'JBFqnCBsd6RMkjVDRZzb', // George (EN)
+  'pNInz6obpgDQGcFmaJgB', // Adam (multilingual)
+  'EXAVITQu4vr4xnSDxMaL', // Bella (F)
+])
+
+const MAX_TEXT_LENGTH = 5000
+
 export async function POST(request: NextRequest) {
   try {
     const { text, language, voiceId: customVoiceId } = await request.json()
 
-    if (!text) {
+    if (!text || typeof text !== 'string') {
       return new Response(JSON.stringify({ error: 'Missing text' }), { status: 400 })
     }
 
+    if (text.length > MAX_TEXT_LENGTH) {
+      return new Response(JSON.stringify({ error: `Text too long (max ${MAX_TEXT_LENGTH} chars)` }), { status: 400 })
+    }
+
+    // Validate custom voiceId against allowlist
+    if (customVoiceId && !ALLOWED_VOICE_IDS.has(customVoiceId)) {
+      return new Response(JSON.stringify({ error: 'Invalid voice ID' }), { status: 400 })
+    }
+
     if (!ELEVENLABS_API_KEY) {
-      return new Response(JSON.stringify({ error: 'ELEVENLABS_API_KEY not configured' }), { status: 500 })
+      return new Response(JSON.stringify({ error: 'TTS service not configured' }), { status: 500 })
     }
 
     const mapped = VOICE_MAP[language] || DEFAULT_VOICE
@@ -45,9 +63,8 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errText = await response.text()
-      console.error('ElevenLabs TTS error:', response.status, errText)
-      return new Response(JSON.stringify({ error: `ElevenLabs API error: ${response.status}` }), { status: response.status })
+      console.error('ElevenLabs TTS error:', response.status)
+      return new Response(JSON.stringify({ error: 'TTS service error' }), { status: 502 })
     }
 
     const audioBuffer = await response.arrayBuffer()

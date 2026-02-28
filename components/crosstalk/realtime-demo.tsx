@@ -41,15 +41,17 @@ const VOICES = [
   { id: "EXAVITQu4vr4xnSDxMaL", label: "F" },
 ] as const
 
+const WAVE_HEIGHTS = [10, 16, 12, 18, 14]
+
 function WaveBar({ active }: { active: boolean }) {
   return (
     <div className="flex items-center gap-[3px] h-5">
-      {Array.from({ length: 5 }).map((_, i) => (
+      {WAVE_HEIGHTS.map((h, i) => (
         <div
           key={i}
           className="w-[3px] rounded-full transition-all duration-200"
           style={{
-            height: active ? `${8 + Math.random() * 12}px` : "3px",
+            height: active ? `${h}px` : "3px",
             backgroundColor: active ? "oklch(0.98 0 0)" : "oklch(0.3 0 0)",
             animation: active
               ? `wave-line 0.5s ease-in-out ${i * 0.07}s infinite`
@@ -293,7 +295,7 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
   useEffect(() => {
     leftRef.current?.scrollTo({ top: leftRef.current.scrollHeight, behavior: "smooth" })
     rightRef.current?.scrollTo({ top: rightRef.current.scrollHeight, behavior: "smooth" })
-  }, [messages, liveText])
+  }, [messages])
 
   const startListening = async () => {
     try {
@@ -639,8 +641,15 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
                             )}
                           </button>
                         </div>
-                        <div className="border border-border px-4 py-3 rounded-sm rounded-bl-none max-w-[85%] text-sm leading-relaxed text-foreground/80">
-                          {msg.translated}
+                        <div className={`border px-4 py-3 rounded-sm rounded-bl-none max-w-[85%] text-sm leading-relaxed ${msg.isTranslating ? 'border-yellow-500 bg-yellow-50' : 'border-border text-foreground/80'}`}>
+                          {msg.isTranslating ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin text-yellow-600" />
+                              <span>{msg.translated}</span>
+                            </div>
+                          ) : (
+                            <span>{msg.translated}</span>
+                          )}
                         </div>
                         <span className="text-[10px] font-mono text-muted-foreground">{msg.timestamp}</span>
                       </div>

@@ -1,11 +1,7 @@
 import axios from 'axios';
 
-// Mistral API configuration
-const MISTRAL_API_URL = process.env.NODE_ENV === 'production'
-  ? 'https://api.mistral.ai/v1/chat/completions'
-  : '/api/mistral/translate';
+const MISTRAL_API_URL = '/api/mistral/translate';
 
-const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || '';
 
 export interface TranslationResult {
   text: string;
@@ -42,28 +38,13 @@ export class MistralService {
       const startTime = performance.now();
       console.log(`🌍 Translating from ${sourceLang} to ${targetLang}: "${text}"`);
 
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-      };
-      
-      // Only add authorization header if we're using the real API
-      if (MISTRAL_API_URL.startsWith('https://api.mistral.ai')) {
-        headers['Authorization'] = `Bearer ${MISTRAL_API_KEY}`;
-      }
-
-      const response = await axios.post(
-        MISTRAL_API_URL,
-        {
-          text: text,
-          source_language: sourceLang,
-          target_language: targetLang,
-          languages: languages,
-          domain: domain,
-          model: 'mistral-large-latest',
-          timestamp: Date.now()
-        },
-        { headers }
-      );
+      const response = await axios.post(MISTRAL_API_URL, {
+        text: text,
+        source_language: sourceLang,
+        target_language: targetLang,
+        languages: languages,
+        domain: domain
+      });
 
       const elapsed = Math.round(performance.now() - startTime);
 
