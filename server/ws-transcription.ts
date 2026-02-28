@@ -1,156 +1,182 @@
-import { WebSocketServer, WebSocket } from "ws";
+import { WebSocketServer, WebSocket, type RawData } from "ws";
 import { createServer } from "http";
 
 const PORT = parseInt(process.env.WS_PORT || "8080");
 const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || "";
 const MISTRAL_WS_URL = "wss://api.mistral.ai/v1/audio/transcriptions/realtime";
 const MODEL = "voxtral-mini-transcribe-realtime-2602";
+const TARGET_DELAY_MS = 240; // sub-200ms not always stable, 240 is sweet spot
 
 const httpServer = createServer((_req, res) => {
   res.writeHead(200, {
     "Access-Control-Allow-Origin": "*",
     "Content-Type": "application/json",
   });
-  res.end(JSON.stringify({ status: "ok", model: MODEL }));
+  res.end(`{"status":"ok","model":"${MODEL}"}`);
 });
 
-const wss = new WebSocketServer({ server: httpServer });
+// Disable per-message compression — adds CPU latency per frame, not worth it for small audio packets
+const wss = new WebSocketServer({
+  server: httpServer,
+  perMessageDeflate: false,
+  maxPayload: 512 * 1024, // 512KB max per message
+});
 
 wss.on("connection", (clientWs) => {
   console.log("[client] connected");
 
   let mistralWs: WebSocket | null = null;
   let sessionReady = false;
+  let audioQueue: Buffer[] = []; // buffer audio before session is ready
+  let draining = false;
 
-  // Connect to Mistral realtime API
   const url = `${MISTRAL_WS_URL}?model=${MODEL}`;
   mistralWs = new WebSocket(url, {
-    headers: {
-      Authorization: `Bearer ${MISTRAL_API_KEY}`,
-    },
+    headers: { Authorization: `Bearer ${MISTRAL_API_KEY}` },
+    perMessageDeflate: false,
   });
 
-  mistralWs.on("open", () => {
-    console.log("[mistral] connected");
-  });
+  // Flush queued audio once session is ready
+  function drainQueue() {
+    if (draining || !mistralWs || mistralWs.readyState !== WebSocket.OPEN) return;
+    draining = true;
+    for (const buf of audioQueue) {
+      sendAudio(buf);
+    }
+    audioQueue = [];
+    draining = false;
+  }
 
-  mistralWs.on("message", (data) => {
-    const text = data.toString();
-    try {
-      const event = JSON.parse(text);
-      const type = event.type;
+  // Send PCM buffer to Mistral as base64 JSON (their required protocol)
+  function sendAudio(pcmBuffer: Buffer) {
+    if (!mistralWs || mistralWs.readyState !== WebSocket.OPEN) return;
+    // Pre-build JSON string with template to avoid JSON.stringify overhead
+    const b64 = pcmBuffer.toString("base64");
+    mistralWs.send(`{"type":"input_audio.append","audio":"${b64}"}`);
+  }
 
-      if (type === "session.created") {
+  // Forward Mistral events to client with minimal overhead
+  mistralWs.on("message", (raw: RawData) => {
+    if (clientWs.readyState !== WebSocket.OPEN) return;
+
+    const text = raw.toString();
+    // Fast type extraction without full JSON parse for forwarding
+    const typeMatch = text.match(/"type"\s*:\s*"([^"]+)"/);
+    if (!typeMatch) return;
+    const type = typeMatch[1];
+
+    // Log all event types for debugging
+    if (type !== "transcription.text.delta") {
+      console.log("[mistral] event:", type, text.slice(0, 200));
+    }
+
+    switch (type) {
+      case "session.created": {
         sessionReady = true;
         console.log("[mistral] session created");
-        // Forward to client
-        clientWs.send(JSON.stringify({ type: "session.created" }));
+        clientWs.send('{"type":"session.created"}');
 
-        // Update session with audio format
-        mistralWs?.send(
-          JSON.stringify({
-            type: "session.update",
-            session: {
-              audio_format: {
-                encoding: "pcm_s16le",
-                sample_rate: 16000,
-              },
-            },
-          })
-        );
-      } else if (type === "transcription.text.delta") {
-        // Stream text deltas to client immediately
-        clientWs.send(
-          JSON.stringify({
-            type: "text_delta",
-            text: event.text || "",
-          })
-        );
-      } else if (type === "transcription.language") {
-        clientWs.send(
-          JSON.stringify({
-            type: "language",
-            language: event.language || "unknown",
-          })
-        );
-      } else if (type === "transcription.segment") {
-        clientWs.send(
-          JSON.stringify({
+        // Configure audio format + low latency
+        mistralWs?.send(JSON.stringify({
+          type: "session.update",
+          session: {
+            audio_format: { encoding: "pcm_s16le", sample_rate: 16000 },
+            target_streaming_delay_ms: TARGET_DELAY_MS,
+          },
+        }));
+
+        // Drain any audio that arrived during handshake
+        drainQueue();
+        break;
+      }
+      case "transcription.text.delta": {
+        // Extract text field fast
+        const textMatch = text.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+        const t = textMatch ? textMatch[1] : "";
+        clientWs.send(`{"type":"text_delta","text":"${t}"}`);
+        break;
+      }
+      case "transcription.language": {
+        const langMatch = text.match(/"language"\s*:\s*"([^"]+)"/);
+        const lang = langMatch ? langMatch[1] : "unknown";
+        console.log("[mistral] language:", lang);
+        clientWs.send(`{"type":"language","language":"${lang}"}`);
+        break;
+      }
+      case "transcription.segment": {
+        // Forward full segment including language for speaker detection
+        try {
+          const event = JSON.parse(text);
+          console.log("[mistral] segment lang:", event.language, "text:", (event.text || "").slice(0, 50));
+          clientWs.send(JSON.stringify({
             type: "segment",
             text: event.text || "",
+            language: event.language || "",
             start: event.start,
             end: event.end,
-          })
-        );
-      } else if (type === "transcription.done") {
-        console.log("[mistral] transcription done");
-        clientWs.send(JSON.stringify({ type: "done" }));
-      } else if (type === "error") {
-        console.error("[mistral] error:", event);
-        clientWs.send(
-          JSON.stringify({ type: "error", error: event.error || "Unknown error" })
-        );
-      } else if (type === "session.updated") {
-        console.log("[mistral] session updated");
-      } else {
-        console.log("[mistral] unknown event:", type);
+          }));
+        } catch {
+          clientWs.send(`{"type":"segment","text":""}`);
+        }
+        break;
       }
-    } catch (e) {
-      console.error("[mistral] parse error:", e);
+      case "transcription.done":
+        console.log("[mistral] done");
+        clientWs.send('{"type":"done"}');
+        break;
+      case "error": {
+        console.error("[mistral] error:", text);
+        clientWs.send(`{"type":"error","error":"Mistral error"}`);
+        break;
+      }
+      case "session.updated":
+        console.log("[mistral] session updated, delay:", TARGET_DELAY_MS, "ms");
+        break;
     }
   });
 
   mistralWs.on("error", (err) => {
     console.error("[mistral] ws error:", err.message);
-    clientWs.send(
-      JSON.stringify({ type: "error", error: `Mistral connection error: ${err.message}` })
-    );
+    if (clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(`{"type":"error","error":"Connection error"}`);
+    }
   });
 
   mistralWs.on("close", (code, reason) => {
     console.log(`[mistral] closed: ${code} ${reason.toString()}`);
+    sessionReady = false;
     if (clientWs.readyState === WebSocket.OPEN) {
-      clientWs.send(JSON.stringify({ type: "done" }));
+      clientWs.send('{"type":"done"}');
     }
   });
 
-  // Handle audio from browser client
-  clientWs.on("message", (data) => {
-    if (!mistralWs || mistralWs.readyState !== WebSocket.OPEN || !sessionReady) {
-      return;
-    }
+  // Handle audio from browser — binary PCM frames
+  clientWs.on("message", (data: RawData, isBinary: boolean) => {
+    if (isBinary) {
+      const buf = data instanceof Buffer ? data : Buffer.from(data as ArrayBuffer);
 
-    // Client sends binary PCM audio data
-    if (data instanceof Buffer || data instanceof ArrayBuffer) {
-      const buffer = data instanceof Buffer ? data : Buffer.from(data);
-      const base64Audio = buffer.toString("base64");
-
-      mistralWs.send(
-        JSON.stringify({
-          type: "input_audio.append",
-          audio: base64Audio,
-        })
-      );
+      if (sessionReady) {
+        sendAudio(buf);
+      } else {
+        // Queue audio during Mistral handshake (typically <500ms)
+        audioQueue.push(buf);
+      }
     } else {
-      // Text message - could be control commands
-      try {
-        const msg = JSON.parse(data.toString());
-        if (msg.type === "flush") {
-          mistralWs.send(JSON.stringify({ type: "input_audio.flush" }));
-        } else if (msg.type === "end") {
-          mistralWs.send(JSON.stringify({ type: "input_audio.end" }));
-        }
-      } catch {
-        // ignore
+      // Text control messages
+      const str = data.toString();
+      if (str.includes("flush") && mistralWs?.readyState === WebSocket.OPEN) {
+        mistralWs.send('{"type":"input_audio.flush"}');
+      } else if (str.includes("end") && mistralWs?.readyState === WebSocket.OPEN) {
+        mistralWs.send('{"type":"input_audio.end"}');
       }
     }
   });
 
   clientWs.on("close", () => {
     console.log("[client] disconnected");
+    audioQueue = [];
     if (mistralWs && mistralWs.readyState === WebSocket.OPEN) {
-      // Signal end of audio and close
-      mistralWs.send(JSON.stringify({ type: "input_audio.end" }));
+      mistralWs.send('{"type":"input_audio.end"}');
       mistralWs.close();
     }
   });
@@ -161,7 +187,5 @@ wss.on("connection", (clientWs) => {
 });
 
 httpServer.listen(PORT, () => {
-  console.log(`WebSocket transcription server running on ws://localhost:${PORT}`);
-  console.log(`Model: ${MODEL}`);
-  console.log(`Mistral API key: ${MISTRAL_API_KEY ? "configured" : "MISSING"}`);
+  console.log(`WS server on ws://localhost:${PORT} | model: ${MODEL} | delay: ${TARGET_DELAY_MS}ms`);
 });

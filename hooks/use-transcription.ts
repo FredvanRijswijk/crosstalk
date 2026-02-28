@@ -66,6 +66,13 @@ export function useTranscription() {
     }
   }, [voxstralService]);
 
+  const resetTranscription = useCallback(() => {
+    if (voxstralService) {
+      voxstralService.resetText();
+    }
+    setTranscription('');
+  }, [voxstralService]);
+
   const stopTranscription = useCallback(async () => {
     if (!voxstralService) {
       return;
@@ -97,6 +104,7 @@ export function useTranscription() {
     startTranscription,
     stopTranscription,
     toggleTranscription,
+    resetTranscription,
     setLanguage
   };
 }

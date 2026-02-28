@@ -1,85 +1,90 @@
 import { NextResponse } from 'next/server'
 import { NextRequest } from 'next/server'
 
-// Mock translations for different language pairs
-const MOCK_TRANSLATIONS: Record<string, Record<string, string>> = {
-  es: {
-    nl: "Goedemorgen, dokter. Ik heb al twee dagen veel pijn op de borst.",
-    en: "Good morning, doctor. I've had severe chest pain for two days.",
-    fr: "Bonjour docteur. J'ai des douleurs thoraciques sévères depuis deux jours.",
-    de: "Guten Morgen, Arzt. Ich habe seit zwei Tagen starke Brustschmerzen."
-  },
-  nl: {
-    es: "Buenos días, doctor. Me duele mucho el pecho desde hace dos días.",
-    en: "Good morning, doctor. I've had severe chest pain for two days.",
-    fr: "Bonjour docteur. J'ai des douleurs thoraciques sévères depuis deux jours.",
-    de: "Guten Morgen, Arzt. Ich habe seit zwei Tagen starke Brustschmerzen."
-  },
-  en: {
-    es: "Buenos días, doctor. Me duele mucho el pecho desde hace dos días.",
-    nl: "Goedemorgen, dokter. Ik heb al twee dagen veel pijn op de borst.",
-    fr: "Bonjour docteur. J'ai des douleurs thoraciques sévères depuis deux jours.",
-    de: "Guten Morgen, Arzt. Ich habe seit zwei Tagen starke Brustschmerzen."
-  }
-}
+const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || ''
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    
-    // Validate required fields
-    if (!body.text || !body.source_language || !body.target_language) {
+
+    if (!body.text || !body.target_language) {
       return NextResponse.json(
-        { error: 'Missing required fields: text, source_language, and target_language are required' },
+        { error: 'Missing required fields: text and target_language' },
         { status: 400 }
       )
     }
 
-    // Mock processing delay (simulate real API latency)
-    await new Promise(resolve => setTimeout(resolve, 300))
+    if (!MISTRAL_API_KEY) {
+      return NextResponse.json(
+        { error: 'MISTRAL_API_KEY not configured' },
+        { status: 500 }
+      )
+    }
 
-    // Get the mock translation
-    const sourceLang = body.source_language
+    const sourceLang = body.source_language || 'auto'
     const targetLang = body.target_language
-    
-    // Find the best matching mock translation
-    let translation = MOCK_TRANSLATIONS[sourceLang]?.[targetLang] || "Translation not available"
-    
-    // If we don't have an exact match, try to find a similar one
-    if (translation === "Translation not available") {
-      // Try to find any translation from this source language
-      const sourceTranslations = MOCK_TRANSLATIONS[sourceLang]
-      if (sourceTranslations) {
-        // Use the first available target language as fallback
-        translation = sourceTranslations[Object.keys(sourceTranslations)[0]]
-      }
+    const languages = body.languages // e.g. ["nl", "en"] — the two conversation languages
+
+    // Build prompt: if we know both languages, ask to detect and translate to the OTHER one
+    const prompt = languages && languages.length === 2
+      ? `You are a professional translator. The conversation uses ${languages[0]} and ${languages[1]}. Detect which of these two languages the input text is in, then translate it to the OTHER language. Respond in this exact JSON format: {"detected":"<ISO 639-1 code>","translation":"<translated text>"}. Nothing else.`
+      : `You are a professional translator. Detect the language of the input text and translate it to ${targetLang}. Respond in this exact JSON format: {"detected":"<ISO 639-1 language code>","translation":"<translated text>"}. Nothing else.`
+
+    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${MISTRAL_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'mistral-small-latest',
+        messages: [
+          { role: 'system', content: prompt },
+          { role: 'user', content: body.text }
+        ],
+        temperature: 0.1,
+        max_tokens: 500,
+        response_format: { type: 'json_object' },
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Mistral translation error:', response.status, errorText)
+      return NextResponse.json(
+        { error: `Mistral API error: ${response.status}` },
+        { status: response.status }
+      )
+    }
+
+    const data = await response.json()
+    const content = data.choices?.[0]?.message?.content?.trim() || ''
+
+    let translation = ''
+    let detectedLang = sourceLang
+    try {
+      const parsed = JSON.parse(content)
+      translation = parsed.translation || ''
+      detectedLang = parsed.detected || sourceLang
+    } catch {
+      // Fallback if JSON parse fails
+      translation = content
     }
 
     return NextResponse.json({
-      translation: translation,
+      translation,
+      detected_language: detectedLang,
       source_language: sourceLang,
       target_language: targetLang,
-      model: body.model || 'mistral-large-latest',
       timestamp: Date.now(),
-      status: "success"
+      status: 'success'
     })
-    
+
   } catch (error) {
-    console.error('Mock Mistral API error:', error)
+    console.error('Translation API error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
   }
-}
-
-export function GET() {
-  return NextResponse.json(
-    {
-      message: "Mistral Mock Translation API - Use POST to /api/mistral/translate with text and language codes",
-      supported_languages: ["es", "nl", "en", "fr", "de"],
-      available_models: ["mistral-large-latest"],
-      status: "ok"
-    }
-  )
 }

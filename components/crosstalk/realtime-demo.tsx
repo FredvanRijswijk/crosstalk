@@ -65,12 +65,16 @@ function Dots() {
 export function RealtimeDemo() {
   const [messages, setMessages] = useState<Message[]>([])
   const [isListening, setIsListening] = useState(false)
+  const [liveText, setLiveText] = useState<string>('')
   const [currentSpeaker, setCurrentSpeaker] = useState<"left" | "right" | null>(null)
   const [leftLanguage, setLeftLanguage] = useState<string>("nl")
-  const [rightLanguage, setRightLanguage] = useState<string>("es")
+  const [rightLanguage, setRightLanguage] = useState<string>("en")
   const leftRef = useRef<HTMLDivElement>(null)
   const rightRef = useRef<HTMLDivElement>(null)
-  
+  const prevTranscriptionRef = useRef<string>('')
+  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const messageIdRef = useRef(0)
+
   // Transcription hooks
   const {
     isRecording,
@@ -80,12 +84,14 @@ export function RealtimeDemo() {
     error: transcriptionError,
     startTranscription,
     stopTranscription,
+    resetTranscription,
   } = useTranscription()
 
   // Translation hooks
   const {
     isTranslating,
     translation,
+    detectedLanguage: translationDetectedLang,
     sourceLanguage,
     targetLanguage,
     error: translationError,
@@ -93,93 +99,107 @@ export function RealtimeDemo() {
     setTargetLanguage: setTranslationTargetLanguage
   } = useTranslation()
 
-  // Determine which side is currently speaking based on the detected language
-  const determineSpeaker = useCallback((lang: string) => {
-    // If language matches left side, speaker is left
-    // If language matches right side, speaker is right  
-    // Otherwise, alternate speakers based on message count
-    if (lang === leftLanguage) {
-      return "left"
-    } else if (lang === rightLanguage) {
-      return "right"
-    } else {
-      // For auto-detection, alternate based on next message ID
-      return (messages.length + 1) % 2 === 0 ? "left" : "right"
-    }
-  }, [leftLanguage, rightLanguage, messages.length])
+  // Use refs for values needed in callbacks to avoid stale closures
+  const leftLangRef = useRef(leftLanguage)
+  const rightLangRef = useRef(rightLanguage)
+  const detectedLangRef = useRef(detectedLanguage)
+  leftLangRef.current = leftLanguage
+  rightLangRef.current = rightLanguage
+  detectedLangRef.current = detectedLanguage
 
-  // Handle new transcription results
-  useEffect(() => {
-    if (transcription && isListening && transcription.trim().length > 0) {
-      console.log('New transcription received:', { transcription, detectedLanguage });
-      const speaker = determineSpeaker(detectedLanguage || "auto")
-      setCurrentSpeaker(speaker)
-      
-      // For real-time transcription, we'll create a message after a brief pause
-      // This simulates natural speech patterns where people pause between sentences
-      const timer = setTimeout(() => {
-        const newMessage: Message = {
-          id: messages.length + 1,
-          original: transcription,
-          translated: `[Translating from ${detectedLanguage || 'unknown'} to ${speaker === 'left' ? rightLanguage : leftLanguage}]`,
-          speaker: speaker,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          sourceLanguage: detectedLanguage || 'unknown',
-          targetLanguage: speaker === 'left' ? rightLanguage : leftLanguage,
-          confidence: confidence || 0.95,
-          isTranslating: true // Mark as translating
-        }
-        
-        console.log('Adding new message:', newMessage);
-        setMessages((prev) => [...prev, newMessage])
-        setCurrentSpeaker(null)
-        
-        // Start translation
-        const targetLang = speaker === 'left' ? rightLanguage : leftLanguage
-        translateText(transcription, detectedLanguage || 'auto', targetLang)
-          .catch(error => {
-            console.error('Translation failed:', error)
-            // Update message to show translation error
-            setMessages(prev => prev.map(msg => 
-              msg.id === newMessage.id 
-                ? {...msg, translated: `[Translation failed: ${error instanceof Error ? error.message : 'Unknown error'}]`, isTranslating: false}
-                : msg
-            ))
-          })
-      }, 2000) // Wait 2 seconds of silence before creating message
-      
-      return () => clearTimeout(timer)
-    }
-  }, [transcription, isListening, detectedLanguage, messages.length, determineSpeaker, leftLanguage, rightLanguage, confidence, translateText])
+  const determineSpeaker = useCallback((lang: string): "left" | "right" => {
+    const l = leftLangRef.current
+    const r = rightLangRef.current
+    if (lang === l) return "left"
+    if (lang === r) return "right"
+    // Fuzzy match for language codes (e.g. "nld" vs "nl")
+    if (lang.startsWith(l) || l.startsWith(lang)) return "left"
+    if (lang.startsWith(r) || r.startsWith(lang)) return "right"
+    return "left" // default to left (person A)
+  }, [])
 
-  // Handle translation results
+  // Handle realtime transcription - show live text and commit after silence
   useEffect(() => {
-    if (translation && messages.length > 0) {
-      // Find the most recent message that's still translating
-      const messageToUpdate = messages.find(msg => msg.isTranslating)
-      
-      if (messageToUpdate) {
-        console.log('Translation completed:', { translation, sourceLanguage, targetLanguage });
-        
-        // Update the message with the actual translation
-        setMessages(prev => prev.map(msg => 
-          msg.id === messageToUpdate.id 
-            ? {
-                ...msg,
-                translated: translation,
-                targetLanguage: targetLanguage,
-                isTranslating: false
-              }
-            : msg
-        ))
+    if (!isListening || !transcription || transcription.trim().length === 0) return
+    if (transcription === prevTranscriptionRef.current) return
+    prevTranscriptionRef.current = transcription
+
+    const lang = detectedLangRef.current || "auto"
+    const speaker = determineSpeaker(lang)
+    setCurrentSpeaker(speaker)
+    setLiveText(transcription)
+
+    // Reset commit timer on each new delta
+    if (commitTimerRef.current) clearTimeout(commitTimerRef.current)
+
+    // After 1.5s of no new text, commit as a message
+    commitTimerRef.current = setTimeout(() => {
+      const finalText = prevTranscriptionRef.current
+      if (!finalText.trim()) return
+
+      messageIdRef.current += 1
+      const msgId = messageIdRef.current
+
+      // We don't know the language yet — commit as pending, translate will detect it
+      const newMessage: Message = {
+        id: msgId,
+        original: finalText,
+        translated: '',
+        speaker: 'left', // temporary, will be corrected after detection
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        sourceLanguage: 'detecting',
+        targetLanguage: '',
+        confidence: confidence || 0.95,
+        isTranslating: true
       }
+
+      setMessages(prev => [...prev, newMessage])
+      setCurrentSpeaker(null)
+      setLiveText('')
+      prevTranscriptionRef.current = ''
+      resetTranscription()
+
+      // Send both languages — API detects which one and translates to the other
+      const langs = [leftLangRef.current, rightLangRef.current]
+      translateText(finalText, 'auto', '', langs)
+        .catch(error => {
+          console.error('Translation failed:', error)
+          setMessages(prev => prev.map(msg =>
+            msg.id === msgId
+              ? { ...msg, translated: `[Translation failed]`, isTranslating: false }
+              : msg
+          ))
+        })
+    }, 1500)
+
+    return () => {
+      if (commitTimerRef.current) clearTimeout(commitTimerRef.current)
     }
-  }, [translation, messages, targetLanguage])
+  }, [transcription, isListening, confidence, determineSpeaker, translateText, resetTranscription])
+
+  // Handle translation results — fix speaker based on detected language
+  useEffect(() => {
+    if (!translation || !translationDetectedLang) return
+
+    setMessages(prev => {
+      const idx = prev.findIndex(msg => msg.isTranslating)
+      if (idx === -1) return prev
+
+      const spk = determineSpeaker(translationDetectedLang)
+      const correctTarget = spk === 'left' ? rightLangRef.current : leftLangRef.current
+
+      return prev.map((m, i) =>
+        i === idx
+          ? { ...m, translated: translation, speaker: spk, sourceLanguage: translationDetectedLang, targetLanguage: correctTarget, isTranslating: false }
+          : m
+      )
+    })
+  }, [translation, translationDetectedLang, determineSpeaker])
 
   useEffect(() => {
     leftRef.current?.scrollTo({ top: leftRef.current.scrollHeight, behavior: "smooth" })
     rightRef.current?.scrollTo({ top: rightRef.current.scrollHeight, behavior: "smooth" })
-  }, [messages])
+  }, [messages, liveText])
 
   const startListening = async () => {
     try {
@@ -429,32 +449,28 @@ export function RealtimeDemo() {
         </div>
       )}
       
-      {/* Detection and transcription display */}
+      {/* Live transcription display */}
       {isListening && (
         <div className="p-3 bg-background border border-border rounded flex flex-col gap-2">
-          {/* Language detection */}
           {detectedLanguage && detectedLanguage !== 'detecting...' && (
             <div className="text-center">
               <span className="text-xs font-mono text-green-500 tracking-widest">
-                🔍 DETECTED: {detectedLanguage.toUpperCase()} (Confidence: {(confidence * 100).toFixed(1)}%)
+                DETECTED: {detectedLanguage.toUpperCase()}
               </span>
             </div>
           )}
-          
-          {/* Live transcription */}
-          {transcription && transcription.trim().length > 0 && (
+
+          {liveText ? (
             <div className="text-center">
-              <span className="text-sm font-mono text-blue-500 tracking-wide">
-                🎤 LIVE: "{transcription}"
+              <span className="text-sm font-mono text-foreground/70 tracking-wide">
+                {liveText}
               </span>
+              <span className="inline-block w-0.5 h-4 bg-foreground/50 animate-pulse ml-0.5 align-middle" />
             </div>
-          )}
-          
-          {/* Waiting for speech */}
-          {!transcription && (
+          ) : (
             <div className="text-center">
               <span className="text-xs font-mono text-muted-foreground tracking-widest">
-                🎤 SPEAK NOW - Language detection active...
+                SPEAK NOW...
               </span>
             </div>
           )}

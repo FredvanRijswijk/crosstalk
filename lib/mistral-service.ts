@@ -9,6 +9,7 @@ const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || '';
 
 export interface TranslationResult {
   text: string;
+  detectedLanguage: string;
   sourceLanguage: string;
   targetLanguage: string;
   timestamp: number;
@@ -27,7 +28,8 @@ export class MistralService {
   async translateText(
     text: string,
     sourceLang: string,
-    targetLang: string
+    targetLang: string,
+    languages?: string[]
   ): Promise<TranslationResult> {
     try {
       if (this.isTranslating) {
@@ -52,6 +54,7 @@ export class MistralService {
           text: text,
           source_language: sourceLang,
           target_language: targetLang,
+          languages: languages,
           model: 'mistral-large-latest',
           timestamp: Date.now()
         },
@@ -60,6 +63,7 @@ export class MistralService {
 
       const result: TranslationResult = {
         text: response.data.translation,
+        detectedLanguage: response.data.detected_language || sourceLang,
         sourceLanguage: sourceLang,
         targetLanguage: targetLang,
         timestamp: Date.now()

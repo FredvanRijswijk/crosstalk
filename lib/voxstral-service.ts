@@ -12,7 +12,7 @@ const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080';
 export class VoxstralService {
   private mediaStream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
-  private workletNode: AudioWorkletNode | ScriptProcessorNode | null = null;
+  private processorNode: ScriptProcessorNode | null = null;
   private sourceNode: MediaStreamAudioSourceNode | null = null;
   private ws: WebSocket | null = null;
   private isRecording = false;
@@ -20,14 +20,16 @@ export class VoxstralService {
   private currentText = '';
   private currentLanguage = 'unknown';
 
-  async startRecording(language: string = 'auto'): Promise<void> {
+  async startRecording(_language: string = 'auto'): Promise<void> {
     if (this.isRecording) return;
 
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error('getUserMedia not supported');
     }
 
-    // Get microphone access
+    // Connect WS first so it's ready when audio starts
+    await this.connectWebSocket();
+
     this.mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         sampleRate: 16000,
@@ -37,139 +39,141 @@ export class VoxstralService {
       },
     });
 
-    // Set up audio processing to get raw PCM
     this.audioContext = new AudioContext({ sampleRate: 16000 });
     this.sourceNode = this.audioContext.createMediaStreamSource(this.mediaStream);
 
-    // Use ScriptProcessorNode (deprecated but widely supported) to get raw samples
-    const bufferSize = 4096;
-    const processor = this.audioContext.createScriptProcessor(bufferSize, 1, 1);
+    // 2048 samples = 128ms at 16kHz — good balance between latency and overhead
+    const processor = this.audioContext.createScriptProcessor(2048, 1, 1);
 
     processor.onaudioprocess = (e) => {
       if (!this.isRecording || !this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
-      const float32 = e.inputBuffer.getChannelData(0);
-      // Convert float32 [-1,1] to int16 PCM
-      const int16 = new Int16Array(float32.length);
-      for (let i = 0; i < float32.length; i++) {
-        const s = Math.max(-1, Math.min(1, float32[i]));
-        int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      const input = e.inputBuffer.getChannelData(0);
+
+      // Fast float32→int16 conversion
+      const pcm = new Int16Array(input.length);
+      for (let i = 0; i < input.length; i++) {
+        const s = input[i];
+        pcm[i] = s > 0 ? (s * 0x7fff) | 0 : (s * 0x8000) | 0;
       }
 
-      this.ws.send(int16.buffer);
+      // Send binary directly — server handles base64
+      this.ws.send(pcm.buffer);
     };
 
     this.sourceNode.connect(processor);
+    // Connect to destination to keep the processor alive (required by spec)
     processor.connect(this.audioContext.destination);
-    this.workletNode = processor;
+    this.processorNode = processor;
 
-    // Connect WebSocket to server
-    this.connectWebSocket();
     this.isRecording = true;
-    console.log('Recording started (WebSocket mode)');
+    console.log('[voxstral] recording started');
   }
 
-  private connectWebSocket() {
-    this.ws = new WebSocket(WS_URL);
+  private connectWebSocket(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.ws = new WebSocket(WS_URL);
+      this.ws.binaryType = 'arraybuffer';
 
-    this.ws.onopen = () => {
-      console.log('[ws] connected to transcription server');
-    };
+      const timeout = setTimeout(() => {
+        reject(new Error('WebSocket connection timeout'));
+      }, 5000);
 
-    this.ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
+      this.ws.onopen = () => {
+        clearTimeout(timeout);
+        console.log('[ws] connected');
+        resolve();
+      };
 
-        if (msg.type === 'text_delta') {
-          this.currentText += msg.text;
-          console.log('[ws] delta:', msg.text, '| full:', this.currentText);
+      this.ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
 
-          // Emit current accumulated text
-          this.emitResult(this.currentText, this.currentLanguage);
-        } else if (msg.type === 'language') {
-          this.currentLanguage = msg.language;
-          console.log('[ws] language detected:', msg.language);
-        } else if (msg.type === 'segment') {
-          // A complete segment - reset accumulator for next segment
-          console.log('[ws] segment:', msg.text);
-          if (msg.text) {
-            this.emitResult(msg.text, this.currentLanguage);
+          switch (msg.type) {
+            case 'text_delta':
+              this.currentText += msg.text;
+              this.emitResult(this.currentText, this.currentLanguage);
+              break;
+            case 'language':
+              this.currentLanguage = msg.language;
+              console.log('[ws] language:', msg.language);
+              break;
+            case 'segment':
+              if (msg.language) {
+                this.currentLanguage = msg.language;
+              }
+              if (msg.text) {
+                this.emitResult(msg.text, this.currentLanguage);
+              }
+              this.currentText = '';
+              break;
+            case 'session.created':
+              console.log('[ws] session ready');
+              break;
+            case 'done':
+              console.log('[ws] done');
+              break;
+            case 'error':
+              console.error('[ws] error:', msg.error);
+              break;
           }
-          this.currentText = '';
-        } else if (msg.type === 'session.created') {
-          console.log('[ws] session created');
-        } else if (msg.type === 'done') {
-          console.log('[ws] transcription done');
-        } else if (msg.type === 'error') {
-          console.error('[ws] error:', msg.error);
+        } catch {
+          // ignore parse errors
         }
-      } catch (e) {
-        console.error('[ws] parse error:', e);
-      }
-    };
+      };
 
-    this.ws.onerror = (err) => {
-      console.error('[ws] error:', err);
-    };
+      this.ws.onerror = (err) => {
+        clearTimeout(timeout);
+        console.error('[ws] error:', err);
+        reject(new Error('WebSocket connection failed'));
+      };
 
-    this.ws.onclose = () => {
-      console.log('[ws] disconnected');
-    };
+      this.ws.onclose = () => {
+        console.log('[ws] disconnected');
+      };
+    });
   }
 
   private emitResult(text: string, language: string) {
-    if (!text.trim()) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
 
     const result: TranscriptionResult = {
-      text: text.trim(),
+      text: trimmed,
       language,
       confidence: 0.95,
       timestamp: Date.now(),
     };
 
-    this.transcriptionCallbacks.forEach((cb) => {
-      try {
-        cb(result);
-      } catch (e) {
-        console.error('Callback error:', e);
-      }
-    });
+    for (const cb of this.transcriptionCallbacks) {
+      try { cb(result); } catch { /* skip */ }
+    }
   }
 
   async stopRecording(): Promise<void> {
     if (!this.isRecording) return;
+    this.isRecording = false;
 
-    // Signal end of audio
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'end' }));
-      // Small delay then close
-      setTimeout(() => {
-        this.ws?.close();
-        this.ws = null;
-      }, 500);
+      this.ws.send('{"type":"end"}');
+      this.ws.close();
     }
+    this.ws = null;
 
-    // Clean up audio
-    if (this.workletNode) {
-      this.workletNode.disconnect();
-      this.workletNode = null;
-    }
-    if (this.sourceNode) {
-      this.sourceNode.disconnect();
-      this.sourceNode = null;
-    }
+    this.processorNode?.disconnect();
+    this.processorNode = null;
+    this.sourceNode?.disconnect();
+    this.sourceNode = null;
+
     if (this.audioContext) {
       await this.audioContext.close();
       this.audioContext = null;
     }
-    if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach((t) => t.stop());
-      this.mediaStream = null;
-    }
 
-    this.isRecording = false;
+    this.mediaStream?.getTracks().forEach(t => t.stop());
+    this.mediaStream = null;
     this.currentText = '';
-    console.log('Recording stopped');
+    console.log('[voxstral] stopped');
   }
 
   onTranscription(callback: TranscriptionCallback): () => void {
@@ -178,6 +182,10 @@ export class VoxstralService {
       const i = this.transcriptionCallbacks.indexOf(callback);
       if (i !== -1) this.transcriptionCallbacks.splice(i, 1);
     };
+  }
+
+  resetText(): void {
+    this.currentText = '';
   }
 
   isRecordingActive(): boolean {

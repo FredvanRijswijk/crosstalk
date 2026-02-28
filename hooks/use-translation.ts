@@ -4,6 +4,7 @@ import { MistralService, TranslationResult } from '@/lib/mistral-service';
 export function useTranslation() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [translation, setTranslation] = useState<string>('');
+  const [detectedLanguage, setDetectedLanguage] = useState<string>('');
   const [sourceLanguage, setSourceLanguage] = useState<string>('');
   const [targetLanguage, setTargetLanguage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +29,7 @@ export function useTranslation() {
     
     const unsubscribe = mistralService.onTranslation((result) => {
       setTranslation(result.text);
+      setDetectedLanguage(result.detectedLanguage);
       setSourceLanguage(result.sourceLanguage);
       setTargetLanguage(result.targetLanguage);
     });
@@ -40,7 +42,8 @@ export function useTranslation() {
   const translateText = useCallback(async (
     text: string,
     sourceLang: string,
-    targetLang: string
+    targetLang: string,
+    languages?: string[]
   ) => {
     if (!mistralService) {
       setError('Mistral service not initialized');
@@ -51,8 +54,8 @@ export function useTranslation() {
       setIsTranslating(true);
       setError(null);
       setTranslation('');
-      
-      await mistralService.translateText(text, sourceLang, targetLang);
+
+      await mistralService.translateText(text, sourceLang, targetLang, languages);
       
     } catch (err) {
       console.error('Failed to translate text:', err);
@@ -64,6 +67,7 @@ export function useTranslation() {
   return {
     isTranslating,
     translation,
+    detectedLanguage,
     sourceLanguage,
     targetLanguage,
     error,
