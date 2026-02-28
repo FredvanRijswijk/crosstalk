@@ -21,6 +21,7 @@ import { useTranslation } from "@/hooks/use-translation"
 import { useTTS } from "@/hooks/use-tts"
 import { LanguageSelector } from "@/components/ui/language-selector"
 import { Switch } from "@/components/ui/switch"
+import type { UseCasePreset } from "@/components/crosstalk/use-cases"
 
 interface Message {
   id: number
@@ -83,7 +84,7 @@ function EmptyState() {
   )
 }
 
-export function RealtimeDemo() {
+export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
   const [messages, setMessages] = useState<Message[]>([])
   const [isListening, setIsListening] = useState(false)
   const [liveText, setLiveText] = useState<string>('')
@@ -93,8 +94,23 @@ export function RealtimeDemo() {
   const [leftVoice, setLeftVoice] = useState(0)
   const [rightVoice, setRightVoice] = useState(1)
   const [silenceTimeout, setSilenceTimeout] = useState(1.5)
+  const [domain, setDomain] = useState<string>('')
   const [summary, setSummary] = useState<string | null>(null)
   const [isSummarizing, setIsSummarizing] = useState(false)
+
+  // Apply preset when selected
+  useEffect(() => {
+    if (!preset) {
+      setDomain('')
+      return
+    }
+    setLeftLanguage(preset.left)
+    setRightLanguage(preset.right)
+    setSilenceTimeout(preset.silence)
+    setLeftAutoSpeak(preset.autoSpeak)
+    setRightAutoSpeak(preset.autoSpeak)
+    setDomain(preset.domain)
+  }, [preset])
   const leftRef = useRef<HTMLDivElement>(null)
   const rightRef = useRef<HTMLDivElement>(null)
   const prevTranscriptionRef = useRef<string>('')
@@ -126,9 +142,12 @@ export function RealtimeDemo() {
   } = useTranslation()
 
   const { playText, playingId, loadingId, preload } = useTTS()
-  const [autoSpeak, setAutoSpeak] = useState(false)
-  const autoSpeakRef = useRef(autoSpeak)
-  autoSpeakRef.current = autoSpeak
+  const [leftAutoSpeak, setLeftAutoSpeak] = useState(false)
+  const [rightAutoSpeak, setRightAutoSpeak] = useState(false)
+  const leftAutoSpeakRef = useRef(leftAutoSpeak)
+  const rightAutoSpeakRef = useRef(rightAutoSpeak)
+  leftAutoSpeakRef.current = leftAutoSpeak
+  rightAutoSpeakRef.current = rightAutoSpeak
 
   const leftLangRef = useRef(leftLanguage)
   const rightLangRef = useRef(rightLanguage)
@@ -137,6 +156,7 @@ export function RealtimeDemo() {
   const silenceRef = useRef(silenceTimeout)
   const leftVoiceRef = useRef(leftVoice)
   const rightVoiceRef = useRef(rightVoice)
+  const domainRef = useRef(domain)
   leftLangRef.current = leftLanguage
   rightLangRef.current = rightLanguage
   detectedLangRef.current = detectedLanguage
@@ -144,6 +164,7 @@ export function RealtimeDemo() {
   silenceRef.current = silenceTimeout
   leftVoiceRef.current = leftVoice
   rightVoiceRef.current = rightVoice
+  domainRef.current = domain
 
   const determineSpeaker = useCallback((lang: string): "left" | "right" => {
     const l = leftLangRef.current
@@ -193,7 +214,7 @@ export function RealtimeDemo() {
       resetTranscription()
 
       const langs = [leftLangRef.current, rightLangRef.current]
-      translateText(finalText, 'auto', '', langs)
+      translateText(finalText, 'auto', '', langs, domainRef.current || undefined)
         .catch(error => {
           console.error('Translation failed:', error)
           if (pendingCommitRef.current?.msgId === msgId) {
@@ -256,14 +277,15 @@ export function RealtimeDemo() {
     setCurrentSpeaker(null)
     setLiveText('')
 
-    // Voice for the panel where translation appears (opposite side)
-    const voiceIdx = spk === 'left' ? rightVoiceRef.current : leftVoiceRef.current
+    // Translation appears in opposite panel: left speaker → right panel, right speaker → left panel
+    const targetPanel = spk === 'left' ? 'right' : 'left'
+    const voiceIdx = targetPanel === 'left' ? leftVoiceRef.current : rightVoiceRef.current
     const voiceId = VOICES[voiceIdx].id
+    const shouldAutoSpeak = targetPanel === 'left' ? leftAutoSpeakRef.current : rightAutoSpeakRef.current
 
-    if (autoSpeakRef.current) {
+    if (shouldAutoSpeak) {
       playText(newMessage.id, newMessage.translated, newMessage.targetLanguage, voiceId)
     } else {
-      // Preload so clicking play is instant
       preload(newMessage.translated, newMessage.targetLanguage, voiceId)
     }
   }, [translation, translationDetectedLang, translationMs, determineSpeaker, playText, preload])
@@ -443,6 +465,10 @@ export function RealtimeDemo() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1.5 cursor-pointer" title="Auto-speak translations">
+                <Switch checked={leftAutoSpeak} onCheckedChange={setLeftAutoSpeak} className="scale-[0.6]" />
+                <Volume2 className={`w-3 h-3 ${leftAutoSpeak ? 'text-foreground' : 'text-muted-foreground/30'}`} />
+              </label>
               <button
                 onClick={() => setLeftVoice(v => (v + 1) % VOICES.length)}
                 className="text-[10px] font-mono font-bold tracking-wider border border-border rounded px-2 py-0.5 hover:bg-foreground hover:text-background transition-colors"
@@ -547,6 +573,10 @@ export function RealtimeDemo() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1.5 cursor-pointer" title="Auto-speak translations">
+                <Switch checked={rightAutoSpeak} onCheckedChange={setRightAutoSpeak} className="scale-[0.6]" />
+                <Volume2 className={`w-3 h-3 ${rightAutoSpeak ? 'text-foreground' : 'text-muted-foreground/30'}`} />
+              </label>
               <button
                 onClick={() => setRightVoice(v => (v + 1) % VOICES.length)}
                 className="text-[10px] font-mono font-bold tracking-wider border border-border rounded px-2 py-0.5 hover:bg-foreground hover:text-background transition-colors"
@@ -655,10 +685,6 @@ export function RealtimeDemo() {
               <Plus className="w-3 h-3" />
             </button>
           </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <Switch checked={autoSpeak} onCheckedChange={setAutoSpeak} className="scale-75" />
-            <span className="uppercase tracking-widest">Auto-speak</span>
-          </label>
           <span className="tracking-widest">{messages.length} MESSAGES</span>
         </div>
       </div>

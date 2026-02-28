@@ -45,7 +45,8 @@ export function useTranslation() {
     text: string,
     sourceLang: string,
     targetLang: string,
-    languages?: string[]
+    languages?: string[],
+    domain?: string
   ) => {
     if (!mistralService) {
       setError('Mistral service not initialized');
@@ -57,7 +58,7 @@ export function useTranslation() {
       setError(null);
       setTranslation('');
 
-      await mistralService.translateText(text, sourceLang, targetLang, languages);
+      await mistralService.translateText(text, sourceLang, targetLang, languages, domain);
       
     } catch (err) {
       console.error('Failed to translate text:', err);

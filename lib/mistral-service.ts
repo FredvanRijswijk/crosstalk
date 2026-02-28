@@ -30,7 +30,8 @@ export class MistralService {
     text: string,
     sourceLang: string,
     targetLang: string,
-    languages?: string[]
+    languages?: string[],
+    domain?: string
   ): Promise<TranslationResult> {
     try {
       if (this.isTranslating) {
@@ -57,6 +58,7 @@ export class MistralService {
           source_language: sourceLang,
           target_language: targetLang,
           languages: languages,
+          domain: domain,
           model: 'mistral-large-latest',
           timestamp: Date.now()
         },

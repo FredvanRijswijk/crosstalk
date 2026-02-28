@@ -28,10 +28,13 @@ export async function POST(request: NextRequest) {
     const targetLang = body.target_language
     const languages = body.languages
 
+    const domain = body.domain || ''
+    const domainHint = domain ? ` Use ${domain} terminology.` : ''
+
     // Minimal prompt — fewer tokens = faster response
     const prompt = languages && languages.length === 2
-      ? `Translator. Input is ${languages[0]} or ${languages[1]}. Detect which, translate to the other. Reply: LANG|translation. LANG is ISO 639-1 code. No quotes, no explanation.`
-      : `Translate to ${targetLang}. Reply: LANG|translation. LANG is detected ISO 639-1 code. No quotes, no explanation.`
+      ? `Translator. Input is ${languages[0]} or ${languages[1]}. Detect which, translate to the other.${domainHint} Reply: LANG|translation. LANG is ISO 639-1 code. No quotes, no explanation.`
+      : `Translate to ${targetLang}.${domainHint} Reply: LANG|translation. LANG is detected ISO 639-1 code. No quotes, no explanation.`
 
     const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
       method: 'POST',
