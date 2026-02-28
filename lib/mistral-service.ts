@@ -37,6 +37,7 @@ export class MistralService {
       }
       
       this.isTranslating = true;
+      const startTime = performance.now();
       console.log(`🌍 Translating from ${sourceLang} to ${targetLang}: "${text}"`);
 
       const headers: Record<string, string> = {
@@ -69,7 +70,8 @@ export class MistralService {
         timestamp: Date.now()
       };
 
-      console.log(`✅ Translation complete: "${result.text}"`);
+      const elapsed = Math.round(performance.now() - startTime);
+      console.log(`✅ Translation complete (${elapsed}ms): "${result.text}"`);
       
       // Notify all callbacks with the translation result
       this.translationCallbacks.forEach(callback => {
