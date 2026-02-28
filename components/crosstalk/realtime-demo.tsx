@@ -74,6 +74,7 @@ export function RealtimeDemo() {
   const prevTranscriptionRef = useRef<string>('')
   const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const messageIdRef = useRef(0)
+  const pendingCommitRef = useRef<{ text: string; msgId: number; timestamp: string } | null>(null)
 
   // Transcription hooks
   const {
@@ -132,30 +133,17 @@ export function RealtimeDemo() {
     // Reset commit timer on each new delta
     if (commitTimerRef.current) clearTimeout(commitTimerRef.current)
 
-    // After 1.5s of no new text, commit as a message
+    // After 1.5s of no new text, send for translation (don't add to messages yet)
     commitTimerRef.current = setTimeout(() => {
       const finalText = prevTranscriptionRef.current
       if (!finalText.trim()) return
 
       messageIdRef.current += 1
       const msgId = messageIdRef.current
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
-      // We don't know the language yet — commit as pending, translate will detect it
-      const newMessage: Message = {
-        id: msgId,
-        original: finalText,
-        translated: '',
-        speaker: 'left', // temporary, will be corrected after detection
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        sourceLanguage: 'detecting',
-        targetLanguage: '',
-        confidence: confidence || 0.95,
-        isTranslating: true
-      }
-
-      setMessages(prev => [...prev, newMessage])
-      setCurrentSpeaker(null)
-      setLiveText('')
+      // Store pending — keep liveText visible until translation returns
+      pendingCommitRef.current = { text: finalText, msgId, timestamp }
       prevTranscriptionRef.current = ''
       resetTranscription()
 
@@ -164,11 +152,23 @@ export function RealtimeDemo() {
       translateText(finalText, 'auto', '', langs)
         .catch(error => {
           console.error('Translation failed:', error)
-          setMessages(prev => prev.map(msg =>
-            msg.id === msgId
-              ? { ...msg, translated: `[Translation failed]`, isTranslating: false }
-              : msg
-          ))
+          // On failure, still add message so user sees it
+          if (pendingCommitRef.current?.msgId === msgId) {
+            setMessages(prev => [...prev, {
+              id: msgId,
+              original: finalText,
+              translated: '[Translation failed]',
+              speaker: 'left',
+              timestamp,
+              sourceLanguage: 'unknown',
+              targetLanguage: '',
+              confidence: 0,
+              isTranslating: false
+            }])
+            pendingCommitRef.current = null
+            setCurrentSpeaker(null)
+            setLiveText('')
+          }
         })
     }, 1500)
 
@@ -177,23 +177,32 @@ export function RealtimeDemo() {
     }
   }, [transcription, isListening, confidence, determineSpeaker, translateText, resetTranscription])
 
-  // Handle translation results — fix speaker based on detected language
+  // Handle translation results — add message with correct speaker in one shot (no flicker)
   useEffect(() => {
     if (!translation || !translationDetectedLang) return
 
-    setMessages(prev => {
-      const idx = prev.findIndex(msg => msg.isTranslating)
-      if (idx === -1) return prev
+    const pending = pendingCommitRef.current
+    if (!pending) return
 
-      const spk = determineSpeaker(translationDetectedLang)
-      const correctTarget = spk === 'left' ? rightLangRef.current : leftLangRef.current
+    const spk = determineSpeaker(translationDetectedLang)
+    const correctTarget = spk === 'left' ? rightLangRef.current : leftLangRef.current
 
-      return prev.map((m, i) =>
-        i === idx
-          ? { ...m, translated: translation, speaker: spk, sourceLanguage: translationDetectedLang, targetLanguage: correctTarget, isTranslating: false }
-          : m
-      )
-    })
+    const newMessage: Message = {
+      id: pending.msgId,
+      original: pending.text,
+      translated: translation,
+      speaker: spk,
+      timestamp: pending.timestamp,
+      sourceLanguage: translationDetectedLang,
+      targetLanguage: correctTarget,
+      confidence: 0.95,
+      isTranslating: false
+    }
+
+    pendingCommitRef.current = null
+    setMessages(prev => [...prev, newMessage])
+    setCurrentSpeaker(null)
+    setLiveText('')
   }, [translation, translationDetectedLang, determineSpeaker])
 
   useEffect(() => {
