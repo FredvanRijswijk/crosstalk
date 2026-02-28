@@ -9,13 +9,18 @@ import {
   ArrowLeftRight,
   Play,
   Pause,
-  Loader2
+  Loader2,
+  FileText,
+  X,
+  Minus,
+  Plus,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useTranscription } from "@/hooks/use-transcription"
 import { useTranslation } from "@/hooks/use-translation"
 import { useTTS } from "@/hooks/use-tts"
 import { LanguageSelector } from "@/components/ui/language-selector"
+import { Switch } from "@/components/ui/switch"
 
 interface Message {
   id: number
@@ -29,6 +34,11 @@ interface Message {
   isTranslating?: boolean
   translationMs?: number
 }
+
+const VOICES = [
+  { id: "pNInz6obpgDQGcFmaJgB", label: "M" },
+  { id: "EXAVITQu4vr4xnSDxMaL", label: "F" },
+] as const
 
 function WaveBar({ active }: { active: boolean }) {
   return (
@@ -64,6 +74,15 @@ function Dots() {
   )
 }
 
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 text-muted-foreground/40">
+      <Mic className="w-10 h-10" />
+      <p className="text-xs font-mono tracking-widest uppercase">Press start or spacebar</p>
+    </div>
+  )
+}
+
 export function RealtimeDemo() {
   const [messages, setMessages] = useState<Message[]>([])
   const [isListening, setIsListening] = useState(false)
@@ -71,14 +90,18 @@ export function RealtimeDemo() {
   const [currentSpeaker, setCurrentSpeaker] = useState<"left" | "right" | null>(null)
   const [leftLanguage, setLeftLanguage] = useState<string>("nl")
   const [rightLanguage, setRightLanguage] = useState<string>("en")
+  const [leftVoice, setLeftVoice] = useState(0)
+  const [rightVoice, setRightVoice] = useState(1)
+  const [silenceTimeout, setSilenceTimeout] = useState(1.5)
+  const [summary, setSummary] = useState<string | null>(null)
+  const [isSummarizing, setIsSummarizing] = useState(false)
   const leftRef = useRef<HTMLDivElement>(null)
   const rightRef = useRef<HTMLDivElement>(null)
   const prevTranscriptionRef = useRef<string>('')
   const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const messageIdRef = useRef(0)
-  const pendingCommitRef = useRef<{ text: string; msgId: number; timestamp: string } | null>(null)
+  const pendingCommitRef = useRef<{ text: string; msgId: number; timestamp: string; confidence: number } | null>(null)
 
-  // Transcription hooks
   const {
     isRecording,
     transcription,
@@ -90,7 +113,6 @@ export function RealtimeDemo() {
     resetTranscription,
   } = useTranscription()
 
-  // Translation hooks
   const {
     isTranslating,
     translation,
@@ -103,26 +125,49 @@ export function RealtimeDemo() {
     setTargetLanguage: setTranslationTargetLanguage
   } = useTranslation()
 
-  // Use refs for values needed in callbacks to avoid stale closures
+  const { playText, playingId, loadingId, preload } = useTTS()
+  const [autoSpeak, setAutoSpeak] = useState(false)
+  const autoSpeakRef = useRef(autoSpeak)
+  autoSpeakRef.current = autoSpeak
+
   const leftLangRef = useRef(leftLanguage)
   const rightLangRef = useRef(rightLanguage)
   const detectedLangRef = useRef(detectedLanguage)
+  const confidenceRef = useRef(confidence)
+  const silenceRef = useRef(silenceTimeout)
+  const leftVoiceRef = useRef(leftVoice)
+  const rightVoiceRef = useRef(rightVoice)
   leftLangRef.current = leftLanguage
   rightLangRef.current = rightLanguage
   detectedLangRef.current = detectedLanguage
+  confidenceRef.current = confidence
+  silenceRef.current = silenceTimeout
+  leftVoiceRef.current = leftVoice
+  rightVoiceRef.current = rightVoice
 
   const determineSpeaker = useCallback((lang: string): "left" | "right" => {
     const l = leftLangRef.current
     const r = rightLangRef.current
     if (lang === l) return "left"
     if (lang === r) return "right"
-    // Fuzzy match for language codes (e.g. "nld" vs "nl")
     if (lang.startsWith(l) || l.startsWith(lang)) return "left"
     if (lang.startsWith(r) || r.startsWith(lang)) return "right"
-    return "left" // default to left (person A)
+    return "left"
   }, [])
 
-  // Handle realtime transcription - show live text and commit after silence
+  // Keyboard shortcut: spacebar to toggle recording
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && e.target === document.body) {
+        e.preventDefault()
+        toggleListeningRef.current()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
+  // Handle realtime transcription
   useEffect(() => {
     if (!isListening || !transcription || transcription.trim().length === 0) return
     if (transcription === prevTranscriptionRef.current) return
@@ -133,10 +178,8 @@ export function RealtimeDemo() {
     setCurrentSpeaker(speaker)
     setLiveText(transcription)
 
-    // Reset commit timer on each new delta
     if (commitTimerRef.current) clearTimeout(commitTimerRef.current)
 
-    // After 1.5s of no new text, send for translation (don't add to messages yet)
     commitTimerRef.current = setTimeout(() => {
       const finalText = prevTranscriptionRef.current
       if (!finalText.trim()) return
@@ -145,17 +188,14 @@ export function RealtimeDemo() {
       const msgId = messageIdRef.current
       const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
-      // Store pending — keep liveText visible until translation returns
-      pendingCommitRef.current = { text: finalText, msgId, timestamp }
+      pendingCommitRef.current = { text: finalText, msgId, timestamp, confidence: confidenceRef.current }
       prevTranscriptionRef.current = ''
       resetTranscription()
 
-      // Send both languages — API detects which one and translates to the other
       const langs = [leftLangRef.current, rightLangRef.current]
       translateText(finalText, 'auto', '', langs)
         .catch(error => {
           console.error('Translation failed:', error)
-          // On failure, still add message so user sees it
           if (pendingCommitRef.current?.msgId === msgId) {
             setMessages(prev => [...prev, {
               id: msgId,
@@ -173,14 +213,14 @@ export function RealtimeDemo() {
             setLiveText('')
           }
         })
-    }, 1500)
+    }, silenceRef.current * 1000)
 
     return () => {
       if (commitTimerRef.current) clearTimeout(commitTimerRef.current)
     }
   }, [transcription, isListening, confidence, determineSpeaker, translateText, resetTranscription])
 
-  // Handle translation results — add message with correct speaker in one shot (no flicker)
+  // Handle translation results
   useEffect(() => {
     if (!translation || !translationDetectedLang) return
 
@@ -198,7 +238,7 @@ export function RealtimeDemo() {
       timestamp: pending.timestamp,
       sourceLanguage: translationDetectedLang,
       targetLanguage: correctTarget,
-      confidence: 0.95,
+      confidence: pending.confidence,
       isTranslating: false,
       translationMs
     }
@@ -207,7 +247,18 @@ export function RealtimeDemo() {
     setMessages(prev => [...prev, newMessage])
     setCurrentSpeaker(null)
     setLiveText('')
-  }, [translation, translationDetectedLang, translationMs, determineSpeaker])
+
+    // Voice for the panel where translation appears (opposite side)
+    const voiceIdx = spk === 'left' ? rightVoiceRef.current : leftVoiceRef.current
+    const voiceId = VOICES[voiceIdx].id
+
+    if (autoSpeakRef.current) {
+      playText(newMessage.id, newMessage.translated, newMessage.targetLanguage, voiceId)
+    } else {
+      // Preload so clicking play is instant
+      preload(newMessage.translated, newMessage.targetLanguage, voiceId)
+    }
+  }, [translation, translationDetectedLang, translationMs, determineSpeaker, playText, preload])
 
   useEffect(() => {
     leftRef.current?.scrollTo({ top: leftRef.current.scrollHeight, behavior: "smooth" })
@@ -217,11 +268,10 @@ export function RealtimeDemo() {
   const startListening = async () => {
     try {
       setIsListening(true)
-      await startTranscription("auto") // Always use auto-detection
+      await startTranscription("auto")
     } catch (error) {
       setIsListening(false)
       console.error("Failed to start listening:", error)
-      // The error will be caught by the useTranscription hook and displayed in the UI
     }
   }
 
@@ -237,6 +287,7 @@ export function RealtimeDemo() {
   const resetConversation = async () => {
     setMessages([])
     setCurrentSpeaker(null)
+    setSummary(null)
     if (isListening) {
       await stopListening()
     }
@@ -250,7 +301,30 @@ export function RealtimeDemo() {
     }
   }
 
-  const { playText, playingId, loadingId } = useTTS()
+  // Ref for keyboard shortcut to avoid stale closure
+  const toggleListeningRef = useRef(toggleListening)
+  toggleListeningRef.current = toggleListening
+
+  const fetchSummary = async () => {
+    if (messages.length === 0) return
+    setIsSummarizing(true)
+    setSummary(null)
+    try {
+      const res = await fetch('/api/mistral/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+      })
+      if (!res.ok) throw new Error(`Summary failed: ${res.status}`)
+      const data = await res.json()
+      setSummary(data.summary)
+    } catch (err) {
+      console.error('Summary error:', err)
+      setSummary('Failed to generate summary.')
+    } finally {
+      setIsSummarizing(false)
+    }
+  }
 
   const hasMessages = messages.length > 0
 
@@ -272,6 +346,20 @@ export function RealtimeDemo() {
             onChange={setLeftLanguage}
             side="left"
           />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchSummary}
+            disabled={!hasMessages || isSummarizing}
+            className="font-mono text-xs tracking-wider h-9 px-4 rounded-none border-foreground/20 text-foreground hover:bg-foreground hover:text-background"
+          >
+            {isSummarizing ? (
+              <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+            ) : (
+              <FileText className="w-3.5 h-3.5 mr-2" />
+            )}
+            SUMMARY
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -308,6 +396,20 @@ export function RealtimeDemo() {
         </div>
       </div>
 
+      {/* Summary panel */}
+      {summary && (
+        <div className="relative border border-border rounded-sm bg-card px-6 py-4">
+          <button
+            onClick={() => setSummary(null)}
+            className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-2">Summary</p>
+          <p className="text-sm leading-relaxed text-foreground/80">{summary}</p>
+        </div>
+      )}
+
       {/* Main split panel */}
       <div className="relative grid grid-cols-1 lg:grid-cols-2 border border-border rounded-sm overflow-hidden bg-card">
         {/* Center divider */}
@@ -318,7 +420,7 @@ export function RealtimeDemo() {
         </div>
 
         {/* LEFT: Person A */}
-        <div className="flex flex-col min-h-[55vh] lg:min-h-[68vh]">
+        <div className="flex flex-col h-[55vh] lg:h-[68vh]">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
             <div className="flex items-center gap-4">
@@ -333,6 +435,13 @@ export function RealtimeDemo() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => setLeftVoice(v => (v + 1) % VOICES.length)}
+                className="text-[10px] font-mono font-bold tracking-wider border border-border rounded px-2 py-0.5 hover:bg-foreground hover:text-background transition-colors"
+                title="Toggle TTS voice"
+              >
+                {VOICES[leftVoice].label}
+              </button>
               <WaveBar active={currentSpeaker === "left"} />
               {currentSpeaker === "left" ? (
                 <Mic className="w-4 h-4 text-foreground" />
@@ -343,65 +452,79 @@ export function RealtimeDemo() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4" ref={leftRef}>
-            {messages.map((msg) => (
-              <div key={`l-${msg.id}`}>
-                {msg.speaker === "left" ? (
-                  <div className="flex flex-col items-end gap-1.5">
-                    <div className="bg-foreground text-background px-4 py-3 rounded-sm rounded-br-none max-w-[85%] text-sm leading-relaxed">
-                      {msg.original}
-                    </div>
-                    <span className="text-[10px] font-mono text-muted-foreground">{msg.timestamp}</span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-start gap-1.5">
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
-                      <Volume2 className="w-3 h-3" />
-                      Translated
-                      {msg.translationMs ? (
-                        <span className={`ml-1 ${msg.translationMs < 500 ? 'text-green-500' : msg.translationMs < 1000 ? 'text-yellow-500' : 'text-red-400'}`}>
-                          {msg.translationMs}ms
-                        </span>
-                      ) : null}
-                      <button
-                        onClick={() => playText(msg.id, msg.translated, msg.targetLanguage)}
-                        className="ml-1 hover:text-foreground transition-colors"
-                      >
-                        {loadingId === msg.id ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : playingId === msg.id ? (
-                          <Pause className="w-3 h-3" />
-                        ) : (
-                          <Volume2 className="w-3 h-3" />
-                        )}
-                      </button>
-                    </div>
-                    <div className={`border px-4 py-3 rounded-sm rounded-bl-none max-w-[85%] text-sm leading-relaxed ${msg.isTranslating ? 'border-yellow-500 bg-yellow-50' : 'border-border text-foreground/80'}`}>
-                      {msg.isTranslating ? (
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin text-yellow-600" />
-                          <span>{msg.translated}</span>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 flex flex-col" ref={leftRef}>
+            {!hasMessages && !currentSpeaker ? (
+              <div className="flex-1 flex items-center justify-center">
+                <EmptyState />
+              </div>
+            ) : (
+              <div className="mt-auto space-y-4">
+                {messages.map((msg) => (
+                  <div key={`l-${msg.id}`}>
+                    {msg.speaker === "left" ? (
+                      <div className="flex flex-col items-end gap-1.5">
+                        <div className="bg-foreground text-background px-4 py-3 rounded-sm rounded-br-none max-w-[85%] text-sm leading-relaxed">
+                          {msg.original}
                         </div>
-                      ) : (
-                        <span>{msg.translated}</span>
-                      )}
-                    </div>
-                    <span className="text-[10px] font-mono text-muted-foreground">{msg.timestamp}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono text-muted-foreground/50">{msg.sourceLanguage.toUpperCase()}</span>
+                          {msg.confidence < 0.8 && (
+                            <span className="text-[10px] font-mono text-yellow-500">{Math.round(msg.confidence * 100)}%</span>
+                          )}
+                          <span className="text-[10px] font-mono text-muted-foreground">{msg.timestamp}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-start gap-1.5">
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+                          <Volume2 className="w-3 h-3" />
+                          Translated
+                          {msg.translationMs ? (
+                            <span className={`ml-1 ${msg.translationMs < 500 ? 'text-green-500' : msg.translationMs < 1000 ? 'text-yellow-500' : 'text-red-400'}`}>
+                              {msg.translationMs}ms
+                            </span>
+                          ) : null}
+                          <button
+                            onClick={() => playText(msg.id, msg.translated, msg.targetLanguage, VOICES[leftVoice].id)}
+                            className="ml-1 hover:text-foreground transition-colors"
+                          >
+                            {loadingId === msg.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : playingId === msg.id ? (
+                              <Pause className="w-3 h-3" />
+                            ) : (
+                              <Volume2 className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                        <div className={`border px-4 py-3 rounded-sm rounded-bl-none max-w-[85%] text-sm leading-relaxed ${msg.isTranslating ? 'border-yellow-500 bg-yellow-50' : 'border-border text-foreground/80'}`}>
+                          {msg.isTranslating ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin text-yellow-600" />
+                              <span>{msg.translated}</span>
+                            </div>
+                          ) : (
+                            <span>{msg.translated}</span>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-mono text-muted-foreground">{msg.timestamp}</span>
+                      </div>
+                    )}
                   </div>
+                ))}
+                {currentSpeaker === "left" && (
+                  <div className="flex justify-end"><Dots /></div>
+                )}
+                {currentSpeaker === "right" && (
+                  <div className="flex justify-start"><Dots /></div>
                 )}
               </div>
-            ))}
-            {currentSpeaker === "left" && (
-              <div className="flex justify-end"><Dots /></div>
-            )}
-            {currentSpeaker === "right" && (
-              <div className="flex justify-start"><Dots /></div>
             )}
           </div>
         </div>
 
         {/* RIGHT: Person B */}
-        <div className="flex flex-col min-h-[55vh] lg:min-h-[68vh] border-t lg:border-t-0">
+        <div className="flex flex-col h-[55vh] lg:h-[68vh] border-t lg:border-t-0">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
             <div className="flex items-center gap-4">
@@ -416,6 +539,13 @@ export function RealtimeDemo() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => setRightVoice(v => (v + 1) % VOICES.length)}
+                className="text-[10px] font-mono font-bold tracking-wider border border-border rounded px-2 py-0.5 hover:bg-foreground hover:text-background transition-colors"
+                title="Toggle TTS voice"
+              >
+                {VOICES[rightVoice].label}
+              </button>
               <WaveBar active={currentSpeaker === "right"} />
               {currentSpeaker === "right" ? (
                 <Mic className="w-4 h-4 text-foreground" />
@@ -426,52 +556,66 @@ export function RealtimeDemo() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4" ref={rightRef}>
-            {messages.map((msg) => (
-              <div key={`r-${msg.id}`}>
-                {msg.speaker === "right" ? (
-                  <div className="flex flex-col items-end gap-1.5">
-                    <div className="bg-foreground text-background px-4 py-3 rounded-sm rounded-br-none max-w-[85%] text-sm leading-relaxed">
-                      {msg.original}
-                    </div>
-                    <span className="text-[10px] font-mono text-muted-foreground">{msg.timestamp}</span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-start gap-1.5">
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
-                      <Volume2 className="w-3 h-3" />
-                      Translated
-                      {msg.translationMs ? (
-                        <span className={`ml-1 ${msg.translationMs < 500 ? 'text-green-500' : msg.translationMs < 1000 ? 'text-yellow-500' : 'text-red-400'}`}>
-                          {msg.translationMs}ms
-                        </span>
-                      ) : null}
-                      <button
-                        onClick={() => playText(msg.id, msg.translated, msg.targetLanguage)}
-                        className="ml-1 hover:text-foreground transition-colors"
-                      >
-                        {loadingId === msg.id ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : playingId === msg.id ? (
-                          <Pause className="w-3 h-3" />
-                        ) : (
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 flex flex-col" ref={rightRef}>
+            {!hasMessages && !currentSpeaker ? (
+              <div className="flex-1 flex items-center justify-center">
+                <EmptyState />
+              </div>
+            ) : (
+              <div className="mt-auto space-y-4">
+                {messages.map((msg) => (
+                  <div key={`r-${msg.id}`}>
+                    {msg.speaker === "right" ? (
+                      <div className="flex flex-col items-end gap-1.5">
+                        <div className="bg-foreground text-background px-4 py-3 rounded-sm rounded-br-none max-w-[85%] text-sm leading-relaxed">
+                          {msg.original}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono text-muted-foreground/50">{msg.sourceLanguage.toUpperCase()}</span>
+                          {msg.confidence < 0.8 && (
+                            <span className="text-[10px] font-mono text-yellow-500">{Math.round(msg.confidence * 100)}%</span>
+                          )}
+                          <span className="text-[10px] font-mono text-muted-foreground">{msg.timestamp}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-start gap-1.5">
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
                           <Volume2 className="w-3 h-3" />
-                        )}
-                      </button>
-                    </div>
-                    <div className="border border-border px-4 py-3 rounded-sm rounded-bl-none max-w-[85%] text-sm leading-relaxed text-foreground/80">
-                      {msg.translated}
-                    </div>
-                    <span className="text-[10px] font-mono text-muted-foreground">{msg.timestamp}</span>
+                          Translated
+                          {msg.translationMs ? (
+                            <span className={`ml-1 ${msg.translationMs < 500 ? 'text-green-500' : msg.translationMs < 1000 ? 'text-yellow-500' : 'text-red-400'}`}>
+                              {msg.translationMs}ms
+                            </span>
+                          ) : null}
+                          <button
+                            onClick={() => playText(msg.id, msg.translated, msg.targetLanguage, VOICES[rightVoice].id)}
+                            className="ml-1 hover:text-foreground transition-colors"
+                          >
+                            {loadingId === msg.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : playingId === msg.id ? (
+                              <Pause className="w-3 h-3" />
+                            ) : (
+                              <Volume2 className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                        <div className="border border-border px-4 py-3 rounded-sm rounded-bl-none max-w-[85%] text-sm leading-relaxed text-foreground/80">
+                          {msg.translated}
+                        </div>
+                        <span className="text-[10px] font-mono text-muted-foreground">{msg.timestamp}</span>
+                      </div>
+                    )}
                   </div>
+                ))}
+                {currentSpeaker === "right" && (
+                  <div className="flex justify-end"><Dots /></div>
+                )}
+                {currentSpeaker === "left" && (
+                  <div className="flex justify-start"><Dots /></div>
                 )}
               </div>
-            ))}
-            {currentSpeaker === "right" && (
-              <div className="flex justify-end"><Dots /></div>
-            )}
-            {currentSpeaker === "left" && (
-              <div className="flex justify-start"><Dots /></div>
             )}
           </div>
         </div>
@@ -486,9 +630,31 @@ export function RealtimeDemo() {
           </div>
           <span className="tracking-widest">{leftLanguage.toUpperCase()} ↔ {rightLanguage.toUpperCase()}</span>
         </div>
-        <span className="tracking-widest">{messages.length} MESSAGES</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <span className="uppercase tracking-widest">Silence</span>
+            <button
+              onClick={() => setSilenceTimeout(t => Math.max(0.5, +(t - 0.25).toFixed(2)))}
+              className="hover:text-foreground transition-colors"
+            >
+              <Minus className="w-3 h-3" />
+            </button>
+            <span className="w-8 text-center tabular-nums">{silenceTimeout}s</span>
+            <button
+              onClick={() => setSilenceTimeout(t => Math.min(3, +(t + 0.25).toFixed(2)))}
+              className="hover:text-foreground transition-colors"
+            >
+              <Plus className="w-3 h-3" />
+            </button>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <Switch checked={autoSpeak} onCheckedChange={setAutoSpeak} className="scale-75" />
+            <span className="uppercase tracking-widest">Auto-speak</span>
+          </label>
+          <span className="tracking-widest">{messages.length} MESSAGES</span>
+        </div>
       </div>
-      
+
       {/* Error display */}
       {(transcriptionError || translationError) && (
         <div className="p-3 bg-destructive/10 border border-destructive rounded flex items-center justify-center">
@@ -497,7 +663,7 @@ export function RealtimeDemo() {
           </span>
         </div>
       )}
-      
+
       {/* Live transcription display */}
       {isListening && (
         <div className="p-3 bg-background border border-border rounded flex flex-col gap-2">

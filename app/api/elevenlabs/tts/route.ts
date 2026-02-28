@@ -16,7 +16,7 @@ const DEFAULT_VOICE = { voiceId: 'pNInz6obpgDQGcFmaJgB', model: 'eleven_multilin
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, language } = await request.json()
+    const { text, language, voiceId: customVoiceId } = await request.json()
 
     if (!text) {
       return new Response(JSON.stringify({ error: 'Missing text' }), { status: 400 })
@@ -26,7 +26,9 @@ export async function POST(request: NextRequest) {
       return new Response(JSON.stringify({ error: 'ELEVENLABS_API_KEY not configured' }), { status: 500 })
     }
 
-    const { voiceId, model } = VOICE_MAP[language] || DEFAULT_VOICE
+    const mapped = VOICE_MAP[language] || DEFAULT_VOICE
+    const voiceId = customVoiceId || mapped.voiceId
+    const model = customVoiceId ? 'eleven_multilingual_v2' : mapped.model
 
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
       method: 'POST',
