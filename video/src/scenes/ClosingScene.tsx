@@ -7,53 +7,24 @@ export const ClosingScene: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const fadeIn = interpolate(frame, [0, 30], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-
-  // Tagline
-  const tagDelay = 80;
-  const tagF = Math.max(0, frame - tagDelay);
-  const tagOpacity = interpolate(tagF, [0, 30], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const tagY = interpolate(tagF, [0, 30], [30, 0], {
+  const fadeIn = interpolate(frame, [0, 20], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   // CTA
-  const ctaDelay = 120;
+  const ctaDelay = 50;
   const ctaF = Math.max(0, frame - ctaDelay);
-  const ctaOpacity = interpolate(ctaF, [0, 30], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
   const ctaScale = spring({ frame: ctaF, fps, config: { damping: 14, stiffness: 100 } });
-
-  // URL / info
-  const infoDelay = 160;
-  const infoF = Math.max(0, frame - infoDelay);
-  const infoOpacity = interpolate(infoF, [0, 30], [0, 1], {
+  const ctaOpacity = interpolate(ctaF, [0, 20], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
-  // Hackathon badge
-  const badgeDelay = 180;
+  // Badge
+  const badgeDelay = 100;
   const badgeF = Math.max(0, frame - badgeDelay);
   const badgeScale = spring({ frame: badgeF, fps, config: { damping: 12 } });
-
-  // Gradient orbs
-  const orb1 = interpolate(frame, [0, 300], [0, 1], {
-    extrapolateRight: "clamp",
-  });
-  const orb2 = interpolate(frame, [30, 300], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
 
   return (
     <div
@@ -65,55 +36,23 @@ export const ClosingScene: React.FC = () => {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 40,
+        gap: 32,
         opacity: fadeIn,
       }}
     >
-      {/* Background gradient orbs */}
+      {/* Background glow */}
       <div
         style={{
           position: "absolute",
-          width: 1000,
-          height: 1000,
+          width: 900,
+          height: 900,
           borderRadius: "50%",
           background: `radial-gradient(circle, ${COLORS.gradient1}10, transparent 60%)`,
           filter: "blur(120px)",
-          opacity: orb1,
-          left: "10%",
-          top: "-20%",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          width: 800,
-          height: 800,
-          borderRadius: "50%",
-          background: `radial-gradient(circle, ${COLORS.gradient3}10, transparent 60%)`,
-          filter: "blur(120px)",
-          opacity: orb2,
-          right: "10%",
-          bottom: "-20%",
         }}
       />
 
-      <CrossTalkLogo scale={1.5} showTagline={false} delay={10} />
-
-      <div
-        style={{
-          opacity: tagOpacity,
-          transform: `translateY(${tagY}px)`,
-          fontFamily: FONTS.sans,
-          fontSize: 32,
-          fontWeight: 300,
-          color: COLORS.mutedLight,
-          textAlign: "center",
-          maxWidth: 800,
-          lineHeight: 1.5,
-        }}
-      >
-        Breaking language barriers,{"\n"}one conversation at a time.
-      </div>
+      <CrossTalkLogo scale={1.4} showTagline={false} delay={5} />
 
       {/* CTA */}
       <div
@@ -123,63 +62,23 @@ export const ClosingScene: React.FC = () => {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 12,
+          gap: 10,
         }}
       >
-        <div
-          style={{
-            fontFamily: FONTS.sans,
-            fontSize: 42,
-            fontWeight: 700,
-            color: COLORS.fg,
-            letterSpacing: -1,
-          }}
-        >
+        <div style={{ fontFamily: FONTS.sans, fontSize: 44, fontWeight: 700, color: COLORS.fg, letterSpacing: -1 }}>
           Try it now
         </div>
-        <div
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: 28,
-            fontWeight: 400,
-            color: COLORS.accent,
-            letterSpacing: 2,
-          }}
-        >
+        <div style={{ fontFamily: FONTS.mono, fontSize: 30, color: COLORS.accent, letterSpacing: 2 }}>
           crosstalk.today
         </div>
       </div>
 
-      <div
-        style={{
-          opacity: infoOpacity,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 16,
-        }}
-      >
-        <div
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: 14,
-            color: COLORS.muted,
-            letterSpacing: 2,
-          }}
-        >
-          Open source · Free to use
-        </div>
-      </div>
-
+      {/* Badge */}
       <div
         style={{
           transform: `scale(${interpolate(badgeScale, [0, 1], [0, 1])})`,
           opacity: interpolate(badgeScale, [0, 1], [0, 1]),
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 8,
-          marginTop: 20,
+          marginTop: 12,
         }}
       >
         <div
