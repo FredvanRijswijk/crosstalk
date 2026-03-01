@@ -15,6 +15,7 @@ import {
   Minus,
   Plus,
 } from "lucide-react"
+import { track } from "@vercel/analytics"
 import { Button } from "@/components/ui/button"
 import { useTranscription } from "@/hooks/use-transcription"
 import { useTranslation } from "@/hooks/use-translation"
@@ -106,6 +107,7 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
       setDomain('')
       return
     }
+    track("apply_preset", { preset: preset.id, left: preset.left, right: preset.right })
     setLeftLanguage(preset.left)
     setRightLanguage(preset.right)
     setSilenceTimeout(preset.silence)
@@ -183,6 +185,7 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
     const handler = (e: KeyboardEvent) => {
       if (e.code === 'Space' && e.target === document.body) {
         e.preventDefault()
+        track("spacebar_toggle")
         toggleListeningRef.current()
       }
     }
@@ -300,6 +303,7 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
   const startListening = async () => {
     try {
       setIsListening(true)
+      track("start_listening", { leftLanguage, rightLanguage, domain: domain || "none" })
       await startTranscription("auto")
     } catch (error) {
       setIsListening(false)
@@ -310,6 +314,7 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
   const stopListening = async () => {
     try {
       setIsListening(false)
+      track("stop_listening", { messageCount: messages.length })
       await stopTranscription()
     } catch (error) {
       console.error("Failed to stop listening:", error)
@@ -317,6 +322,7 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
   }
 
   const resetConversation = async () => {
+    track("reset_conversation", { messageCount: messages.length })
     setMessages([])
     setCurrentSpeaker(null)
     setSummary(null)
@@ -339,6 +345,7 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
 
   const fetchSummary = async () => {
     if (messages.length === 0) return
+    track("generate_summary", { messageCount: messages.length })
     setIsSummarizing(true)
     setSummary(null)
     try {
@@ -439,7 +446,7 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
       {summary && (
         <div className="relative border border-border rounded-sm bg-card px-4 sm:px-6 py-3 sm:py-4">
           <button
-            onClick={() => setSummary(null)}
+            onClick={() => { track("dismiss_summary"); setSummary(null) }}
             className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="w-4 h-4" />
@@ -475,11 +482,11 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
             </div>
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-1.5 cursor-pointer" title="Auto-speak translations">
-                <Switch checked={leftAutoSpeak} onCheckedChange={setLeftAutoSpeak} className="scale-[0.6]" />
+                <Switch checked={leftAutoSpeak} onCheckedChange={(v) => { track("toggle_auto_speak", { side: "left", enabled: v }); setLeftAutoSpeak(v) }} className="scale-[0.6]" />
                 <Volume2 className={`w-3 h-3 ${leftAutoSpeak ? 'text-foreground' : 'text-muted-foreground/30'}`} />
               </label>
               <button
-                onClick={() => setLeftVoice(v => (v + 1) % VOICES.length)}
+                onClick={() => { track("toggle_voice", { side: "left" }); setLeftVoice(v => (v + 1) % VOICES.length) }}
                 className="text-[10px] font-mono font-bold tracking-wider border border-border rounded px-2 py-0.5 hover:bg-foreground hover:text-background transition-colors"
                 title="Toggle TTS voice"
               >
@@ -528,7 +535,7 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
                             </span>
                           ) : null}
                           <button
-                            onClick={() => playText(msg.id, msg.translated, msg.targetLanguage, VOICES[leftVoice].id)}
+                            onClick={() => { track("play_tts", { side: "left", language: msg.targetLanguage }); playText(msg.id, msg.translated, msg.targetLanguage, VOICES[leftVoice].id) }}
                             className="ml-1 hover:text-foreground transition-colors"
                           >
                             {loadingId === msg.id ? (
@@ -583,11 +590,11 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
             </div>
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-1.5 cursor-pointer" title="Auto-speak translations">
-                <Switch checked={rightAutoSpeak} onCheckedChange={setRightAutoSpeak} className="scale-[0.6]" />
+                <Switch checked={rightAutoSpeak} onCheckedChange={(v) => { track("toggle_auto_speak", { side: "right", enabled: v }); setRightAutoSpeak(v) }} className="scale-[0.6]" />
                 <Volume2 className={`w-3 h-3 ${rightAutoSpeak ? 'text-foreground' : 'text-muted-foreground/30'}`} />
               </label>
               <button
-                onClick={() => setRightVoice(v => (v + 1) % VOICES.length)}
+                onClick={() => { track("toggle_voice", { side: "right" }); setRightVoice(v => (v + 1) % VOICES.length) }}
                 className="text-[10px] font-mono font-bold tracking-wider border border-border rounded px-2 py-0.5 hover:bg-foreground hover:text-background transition-colors"
                 title="Toggle TTS voice"
               >
@@ -636,7 +643,7 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
                             </span>
                           ) : null}
                           <button
-                            onClick={() => playText(msg.id, msg.translated, msg.targetLanguage, VOICES[rightVoice].id)}
+                            onClick={() => { track("play_tts", { side: "right", language: msg.targetLanguage }); playText(msg.id, msg.translated, msg.targetLanguage, VOICES[rightVoice].id) }}
                             className="ml-1 hover:text-foreground transition-colors"
                           >
                             {loadingId === msg.id ? (
@@ -688,14 +695,14 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
           <div className="flex items-center gap-1.5">
             <span className="uppercase tracking-widest hidden sm:inline">Silence</span>
             <button
-              onClick={() => setSilenceTimeout(t => Math.max(0.5, +(t - 0.25).toFixed(2)))}
+              onClick={() => { const v = Math.max(0.5, +(silenceTimeout - 0.25).toFixed(2)); track("adjust_silence", { value: v }); setSilenceTimeout(v) }}
               className="hover:text-foreground transition-colors"
             >
               <Minus className="w-3 h-3" />
             </button>
             <span className="w-8 text-center tabular-nums">{silenceTimeout}s</span>
             <button
-              onClick={() => setSilenceTimeout(t => Math.min(3, +(t + 0.25).toFixed(2)))}
+              onClick={() => { const v = Math.min(3, +(silenceTimeout + 0.25).toFixed(2)); track("adjust_silence", { value: v }); setSilenceTimeout(v) }}
               className="hover:text-foreground transition-colors"
             >
               <Plus className="w-3 h-3" />

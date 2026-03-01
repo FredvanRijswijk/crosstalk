@@ -9,6 +9,7 @@ import {
   Heart,
   type LucideIcon,
 } from "lucide-react"
+import { track } from "@vercel/analytics"
 
 export interface UseCasePreset {
   id: string
@@ -54,7 +55,7 @@ export function UseCases({
           return (
             <button
               key={c.id}
-              onClick={() => onSelect(c)}
+              onClick={() => { track("select_use_case", { useCase: c.id, languages: `${c.left}-${c.right}` }); onSelect(c) }}
               className={`flex flex-col items-center justify-center gap-2.5 py-6 px-2 transition-colors ${
                 isActive
                   ? "bg-foreground"

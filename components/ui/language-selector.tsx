@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { track } from "@vercel/analytics"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -54,9 +55,10 @@ export function LanguageSelector({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[200px]">
         {LANGUAGES.map((lang) => (
-          <DropdownMenuItem 
+          <DropdownMenuItem
             key={lang.code}
             onClick={() => {
+              track("change_language", { side, language: lang.code })
               onChange(lang.code)
               setOpen(false)
             }}
