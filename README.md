@@ -6,7 +6,7 @@ Real-time voice translation app. Two people speak different languages, the app t
 
 Built with Next.js, Mistral AI (Voxstral + Mistral Small), and ElevenLabs TTS.
 
-> Demo video: [`video/out/CrossTalkDemo.mp4`](video/out/CrossTalkDemo.mp4)
+[![Demo video](https://img.youtube.com/vi/LI0CwjrnVhA/maxresdefault.jpg)](https://youtu.be/LI0CwjrnVhA)
 
 ## Features
 
