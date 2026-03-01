@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket, type RawData } from "ws";
 import { createServer } from "http";
 
-const PORT = parseInt(process.env.WS_PORT || "8080");
+const PORT = parseInt(process.env.PORT || process.env.WS_PORT || "8080");
 const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY || "";
 const MISTRAL_WS_URL = "wss://api.mistral.ai/v1/audio/transcriptions/realtime";
 const MODEL = "voxtral-mini-transcribe-realtime-2602";
