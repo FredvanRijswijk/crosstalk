@@ -38,6 +38,7 @@
     "@radix-ui/react-toggle-group": "1.1.11",
     "@radix-ui/react-tooltip": "1.2.8",
     "@types/recordrtc": "^5.6.15",
+    "@types/ws": "^8.18.1",
     "@vercel/analytics": "1.6.1",
     "autoprefixer": "^10.4.20",
     "axios": "^1.13.6",
@@ -60,6 +61,7 @@
     "sonner": "^1.7.1",
     "tailwind-merge": "^3.3.1",
     "vaul": "^1.1.2",
+    "ws": "^8.19.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

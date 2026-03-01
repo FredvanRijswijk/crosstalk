@@ -92,6 +92,9 @@ dependencies:
   '@types/recordrtc':
     specifier: ^5.6.15
     version: 5.6.15
+  '@types/ws':
+    specifier: ^8.18.1
+    version: 8.18.1
   '@vercel/analytics':
     specifier: 1.6.1
     version: 1.6.1(next@16.1.6)(react@19.2.4)
@@ -158,6 +161,9 @@ dependencies:
   vaul:
     specifier: ^1.1.2
     version: 1.1.2(@types/react-dom@19.2.3)(@types/react@19.2.14)(react-dom@19.2.4)(react@19.2.4)
+  ws:
+    specifier: ^8.19.0
+    version: 8.19.0
   zod:
     specifier: ^3.24.1
     version: 3.24.1
@@ -2032,7 +2038,6 @@ packages:
     resolution: {integrity: sha512-VT7KSYudcPOzP5Q0wfbowyNLaVR8QWUdw+088uFWwfvpY6uCWaXpqV6ieLAu9WBcnTa7H4Z5RLK8I5t2FuOcqw==}
     dependencies:
       undici-types: 6.11.1
-    dev: true
 
   /@types/react-dom@19.2.3(@types/react@19.2.14):
     resolution: {integrity: sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==}
@@ -2048,6 +2053,12 @@ packages:
 
   /@types/recordrtc@5.6.15:
     resolution: {integrity: sha512-Hml5qLCDfnACr5pYsbt+PbHQSCY4ynN/s84hx9szZz6B6zaTnX1jCUFLtdYWdxDLUKC6YuCaudm+fSpfnJ06tA==}
+    dev: false
+
+  /@types/ws@8.18.1:
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
+    dependencies:
+      '@types/node': 22.0.0
     dev: false
 
   /@vercel/analytics@1.6.1(next@16.1.6)(react@19.2.4):
@@ -3036,7 +3047,6 @@ packages:
 
   /undici-types@6.11.1:
     resolution: {integrity: sha512-mIDEX2ek50x0OlRgxryxsenE5XaQD4on5U2inY7RApK3SOJpofyw7uW2AyfMKkhAxXIceo2DeWGVGwyvng1GNQ==}
-    dev: true
 
   /update-browserslist-db@1.2.3(browserslist@4.28.1):
     resolution: {integrity: sha512-Js0m9cx+qOgDxo0eMiFGEueWztz+d4+M3rGlmKPT+T4IS/jP4ylw3Nwpu6cpTTP8R1MAC1kF4VbdLt3ARf209w==}
@@ -3119,6 +3129,19 @@ packages:
       d3-shape: 3.2.0
       d3-time: 3.1.0
       d3-timer: 3.0.1
+    dev: false
+
+  /ws@8.19.0:
+    resolution: {integrity: sha512-blAT2mjOEIi0ZzruJfIhb3nps74PRWTCz1IjglWEEpQl5XS/UNama6u2/rjFkDDouqr4L67ry+1aGIALViWjDg==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
     dev: false
 
   /zod@3.24.1:
