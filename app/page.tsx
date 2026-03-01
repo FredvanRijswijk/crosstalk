@@ -1,11 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { RealtimeDemo } from "@/components/crosstalk/realtime-demo"
 import { UseCases, type UseCasePreset } from "@/components/crosstalk/use-cases"
 
 export default function Page() {
   const [preset, setPreset] = useState<UseCasePreset | null>(null)
+
+  useEffect(() => {
+    const demo = new URLSearchParams(window.location.search).get("demo")
+    if (demo) {
+      document.cookie = `__demo=${demo}; path=/; max-age=86400; SameSite=Lax`
+    }
+  }, [])
 
   const handleSelect = (p: UseCasePreset) => {
     setPreset(prev => prev?.id === p.id ? null : p)
