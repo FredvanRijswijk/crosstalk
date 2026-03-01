@@ -2,7 +2,11 @@
 
 Real-time voice translation app. Two people speak different languages, the app transcribes, translates, and speaks translations aloud.
 
-Built with Next.js, Mistral AI (Voxstral + mistral-small), and ElevenLabs TTS.
+**[crosstalk.today](https://crosstalk.today)** — Built at the Mistral AI Worldwide Hackathon in London.
+
+Built with Next.js, Mistral AI (Voxstral + Mistral Small), and ElevenLabs TTS.
+
+> Demo video: [`video/out/CrossTalkDemo.mp4`](video/out/CrossTalkDemo.mp4)
 
 ## Features
 
@@ -20,12 +24,13 @@ Built with Next.js, Mistral AI (Voxstral + mistral-small), and ElevenLabs TTS.
 
 | Service | Model | Purpose | Route |
 |---------|-------|---------|-------|
-| Mistral (Voxstral) | `voxtral-mini-latest` | Speech-to-text transcription | `POST /api/voxstral/transcribe` |
+| Mistral (Voxstral) | `voxtral-mini-transcribe-realtime-2602` | Real-time speech-to-text via WebSocket | WebSocket streaming |
+| Mistral (Voxstral) | `voxtral-mini-latest` | Speech-to-text transcription (REST) | `POST /api/voxstral/transcribe` |
 | Mistral | `mistral-small-latest` | Translation with domain hints | `POST /api/mistral/translate` |
 | Mistral | `mistral-small-latest` | Conversation summary | `POST /api/mistral/summarize` |
 | ElevenLabs | `eleven_turbo_v2_5` (EN) / `eleven_multilingual_v2` (other) | Text-to-speech | `POST /api/elevenlabs/tts` |
 
-Transcription uses a WebSocket server for streaming audio chunks to Voxstral in real-time.
+Primary transcription uses a WebSocket server streaming audio chunks to Voxstral in real-time (~200ms latency). REST endpoint available as fallback.
 
 ## Environment variables
 
