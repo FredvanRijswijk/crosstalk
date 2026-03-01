@@ -12,7 +12,7 @@ export default function Page() {
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center gap-8 px-6 py-10">
+    <main className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center gap-4 sm:gap-8 px-3 sm:px-6 py-4 sm:py-10">
       <RealtimeDemo preset={preset} />
       <UseCases active={preset?.id ?? null} onSelect={handleSelect} />
     </main>

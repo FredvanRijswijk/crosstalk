@@ -361,18 +361,32 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
   const hasMessages = messages.length > 0
 
   return (
-    <div className="w-full max-w-7xl mx-auto flex flex-col gap-6">
+    <div className="w-full max-w-7xl mx-auto flex flex-col gap-3 sm:gap-6">
       {/* Title area */}
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tighter text-foreground leading-none">
-            CrossTalk
-          </h1>
-          <p className="text-sm font-mono text-muted-foreground mt-2 tracking-wide">
-            REAL-TIME VOICE TRANSLATION
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div className="flex items-end justify-between sm:block">
+          <div>
+            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tighter text-foreground leading-none">
+              CrossTalk
+            </h1>
+            <p className="text-[10px] sm:text-sm font-mono text-muted-foreground mt-1 sm:mt-2 tracking-wide">
+              REAL-TIME VOICE TRANSLATION
+            </p>
+          </div>
+          {/* Mobile-only start button */}
+          <Button
+            size="sm"
+            onClick={toggleListening}
+            className="sm:hidden font-mono text-xs tracking-wider h-9 px-5 rounded-none bg-foreground text-background hover:bg-foreground/80"
+          >
+            {isListening ? (
+              <><Pause className="w-3.5 h-3.5 mr-2" />STOP</>
+            ) : (
+              <><Play className="w-3.5 h-3.5 mr-2" />START</>
+            )}
+          </Button>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto">
           <LanguageSelector
             value={leftLanguage}
             onChange={setLeftLanguage}
@@ -383,41 +397,34 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
             size="sm"
             onClick={fetchSummary}
             disabled={!hasMessages || isSummarizing}
-            className="font-mono text-xs tracking-wider h-9 px-4 rounded-none border-foreground/20 text-foreground hover:bg-foreground hover:text-background"
+            className="font-mono text-xs tracking-wider h-9 px-2 sm:px-4 rounded-none border-foreground/20 text-foreground hover:bg-foreground hover:text-background"
           >
             {isSummarizing ? (
-              <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+              <Loader2 className="w-3.5 h-3.5 sm:mr-2 animate-spin" />
             ) : (
-              <FileText className="w-3.5 h-3.5 mr-2" />
+              <FileText className="w-3.5 h-3.5 sm:mr-2" />
             )}
-            SUMMARY
+            <span className="hidden sm:inline">SUMMARY</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={resetConversation}
             disabled={messages.length === 0 && !isListening}
-            className="font-mono text-xs tracking-wider h-9 px-4 rounded-none border-foreground/20 text-foreground hover:bg-foreground hover:text-background"
+            className="font-mono text-xs tracking-wider h-9 px-2 sm:px-4 rounded-none border-foreground/20 text-foreground hover:bg-foreground hover:text-background"
           >
-            <RotateCcw className="w-3.5 h-3.5 mr-2" />
-            RESET
+            <RotateCcw className="w-3.5 h-3.5 sm:mr-2" />
+            <span className="hidden sm:inline">RESET</span>
           </Button>
           <Button
             size="sm"
             onClick={toggleListening}
-            disabled={false}
-            className="font-mono text-xs tracking-wider h-9 px-5 rounded-none bg-foreground text-background hover:bg-foreground/80"
+            className="hidden sm:flex font-mono text-xs tracking-wider h-9 px-5 rounded-none bg-foreground text-background hover:bg-foreground/80"
           >
             {isListening ? (
-              <>
-                <Pause className="w-3.5 h-3.5 mr-2" />
-                STOP
-              </>
+              <><Pause className="w-3.5 h-3.5 mr-2" />STOP</>
             ) : (
-              <>
-                <Play className="w-3.5 h-3.5 mr-2" />
-                START
-              </>
+              <><Play className="w-3.5 h-3.5 mr-2" />START</>
             )}
           </Button>
           <LanguageSelector
@@ -430,7 +437,7 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
 
       {/* Summary panel */}
       {summary && (
-        <div className="relative border border-border rounded-sm bg-card px-6 py-4">
+        <div className="relative border border-border rounded-sm bg-card px-4 sm:px-6 py-3 sm:py-4">
           <button
             onClick={() => setSummary(null)}
             className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
@@ -452,12 +459,12 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
         </div>
 
         {/* LEFT: Person A */}
-        <div className="flex flex-col h-[55vh] lg:h-[68vh]">
+        <div className="flex flex-col h-[35vh] sm:h-[45vh] lg:h-[68vh]">
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-foreground flex items-center justify-center">
-                <span className="font-mono text-xs font-bold text-background">A</span>
+          <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-border">
+            <div className="flex items-center gap-2.5 sm:gap-4">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-foreground flex items-center justify-center">
+                <span className="font-mono text-[10px] sm:text-xs font-bold text-background">A</span>
               </div>
               <div>
                 <h3 className="text-sm font-bold tracking-tight text-foreground">Person A</h3>
@@ -488,7 +495,7 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 flex flex-col" ref={leftRef}>
+          <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-3 sm:py-4 flex flex-col" ref={leftRef}>
             {!hasMessages && !currentSpeaker ? (
               <div className="flex-1 flex items-center justify-center">
                 <EmptyState />
@@ -560,12 +567,12 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
         </div>
 
         {/* RIGHT: Person B */}
-        <div className="flex flex-col h-[55vh] lg:h-[68vh] border-t lg:border-t-0">
+        <div className="flex flex-col h-[35vh] sm:h-[45vh] lg:h-[68vh] border-t lg:border-t-0">
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full border-2 border-foreground flex items-center justify-center">
-                <span className="font-mono text-xs font-bold text-foreground">B</span>
+          <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-border">
+            <div className="flex items-center gap-2.5 sm:gap-4">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-foreground flex items-center justify-center">
+                <span className="font-mono text-[10px] sm:text-xs font-bold text-foreground">B</span>
               </div>
               <div>
                 <h3 className="text-sm font-bold tracking-tight text-foreground">Person B</h3>
@@ -596,7 +603,7 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 flex flex-col" ref={rightRef}>
+          <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-3 sm:py-4 flex flex-col" ref={rightRef}>
             {!hasMessages && !currentSpeaker ? (
               <div className="flex-1 flex items-center justify-center">
                 <EmptyState />
@@ -669,17 +676,17 @@ export function RealtimeDemo({ preset }: { preset?: UseCasePreset | null }) {
       </div>
 
       {/* Status bar */}
-      <div className="flex items-center justify-between text-xs font-mono text-muted-foreground px-1">
-        <div className="flex items-center gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-muted-foreground px-1">
+        <div className="flex items-center gap-4 sm:gap-6">
           <div className="flex items-center gap-2">
             <div className={`w-1.5 h-1.5 rounded-full ${isListening ? "bg-foreground animate-pulse" : "bg-muted-foreground/30"}`} />
             <span className="uppercase tracking-widest">{isListening ? "Listening" : hasMessages ? "Ready" : "Idle"}</span>
           </div>
           <span className="tracking-widest">{leftLanguage.toUpperCase()} ↔ {rightLanguage.toUpperCase()}</span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
           <div className="flex items-center gap-1.5">
-            <span className="uppercase tracking-widest">Silence</span>
+            <span className="uppercase tracking-widest hidden sm:inline">Silence</span>
             <button
               onClick={() => setSilenceTimeout(t => Math.max(0.5, +(t - 0.25).toFixed(2)))}
               className="hover:text-foreground transition-colors"
