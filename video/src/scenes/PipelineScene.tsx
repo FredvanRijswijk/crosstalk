@@ -30,7 +30,7 @@ export const PipelineScene: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const fadeOut = interpolate(frame, [200, 230], [1, 0], {
+  const fadeOut = interpolate(frame, [350, 380], [1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });

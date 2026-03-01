@@ -6,7 +6,7 @@ import { TypewriterText } from "../components/AnimatedText";
 export const HookScene: React.FC = () => {
   const frame = useCurrentFrame();
 
-  const fadeOut = interpolate(frame, [100, 120], [1, 0], {
+  const fadeOut = interpolate(frame, [260, 280], [1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });

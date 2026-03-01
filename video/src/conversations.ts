@@ -39,52 +39,52 @@ const healthcare: ConversationPreset = {
     {
       text: "Hello, I'm Dr. Thompson. How can I help you today?",
       translation: "Hola, soy el Dr. Thompson. ¿En qué puedo ayudarle hoy?",
-      side: "left", latency: 340, origDur: 90, transDur: 100,
+      side: "left", latency: 340, origDur: 86, transDur: 91,
     },
     {
       text: "Buenos días doctor. Tengo un dolor fuerte en el pecho desde ayer.",
       translation: "Good morning doctor. I've had a sharp pain in my chest since yesterday.",
-      side: "right", latency: 290, origDur: 110, transDur: 100,
+      side: "right", latency: 290, origDur: 119, transDur: 119,
     },
     {
       text: "Can you point to where exactly it hurts?",
       translation: "¿Puede señalar dónde exactamente siente el dolor?",
-      side: "left", latency: 260, origDur: 75, transDur: 90,
+      side: "left", latency: 260, origDur: 61, transDur: 93,
     },
     {
       text: "Aquí, en el lado izquierdo. Se siente como presión.",
       translation: "Here, on the left side. It feels like pressure.",
-      side: "right", latency: 310, origDur: 90, transDur: 75,
+      side: "right", latency: 310, origDur: 108, transDur: 87,
     },
     {
       text: "Are you currently taking any medication?",
       translation: "¿Está tomando algún medicamento en este momento?",
-      side: "left", latency: 280, origDur: 70, transDur: 85,
+      side: "left", latency: 280, origDur: 66, transDur: 82,
     },
     {
       text: "Sí, tomo metformina para la diabetes.",
       translation: "Yes, I take metformin for diabetes.",
-      side: "right", latency: 250, origDur: 65, transDur: 60,
+      side: "right", latency: 250, origDur: 76, transDur: 75,
     },
     {
       text: "How long have you had diabetes? Any family history of heart disease?",
       translation: "¿Cuánto tiempo lleva con diabetes? ¿Antecedentes familiares de enfermedades cardíacas?",
-      side: "left", latency: 320, origDur: 100, transDur: 120,
+      side: "left", latency: 320, origDur: 126, transDur: 158,
     },
     {
       text: "Cinco años. Mi padre tuvo problemas del corazón.",
       translation: "Five years. My father had heart problems.",
-      side: "right", latency: 270, origDur: 80, transDur: 65,
+      side: "right", latency: 270, origDur: 86, transDur: 77,
     },
     {
       text: "I'd like to run an ECG and some blood tests. Please try to stay calm.",
       translation: "Me gustaría hacer un ECG y análisis de sangre. Intente mantener la calma.",
-      side: "left", latency: 300, origDur: 100, transDur: 110,
+      side: "left", latency: 300, origDur: 120, transDur: 170,
     },
     {
       text: "Gracias doctor. ¿Cree que es algo grave?",
       translation: "Thank you doctor. Do you think it's something serious?",
-      side: "right", latency: 240, origDur: 70, transDur: 75,
+      side: "right", latency: 240, origDur: 66, transDur: 104,
     },
   ],
 };

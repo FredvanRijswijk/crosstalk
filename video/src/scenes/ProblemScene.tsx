@@ -13,7 +13,7 @@ export const ProblemScene: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const fadeOut = interpolate(frame, [180, 210], [1, 0], {
+  const fadeOut = interpolate(frame, [310, 340], [1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });

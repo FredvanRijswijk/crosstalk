@@ -14,26 +14,26 @@ import { COLORS } from "./theme";
 loadInter("normal", { weights: ["300", "400", "600", "700"], subsets: ["latin"] });
 loadJetBrainsMono("normal", { weights: ["400", "700"], subsets: ["latin"] });
 
-// Scene timing (frames at 30fps) — dynamic based on conversation length
+// Scene timing (frames at 30fps) — fitted to actual narrator audio durations
 const SCENES = {
-  hook:     { from: 0,   duration: 130 },     // ~4.3s
-  problem:  { from: 110, duration: 230 },      // ~7.7s
-  reveal:   { from: 320, duration: 160 },      // ~5.3s
-  pipeline: { from: 460, duration: 250 },      // ~8.3s
-  demo:     { from: 690, duration: DEMO_TOTAL_FRAMES },
-  techUse:  { from: 690 + DEMO_TOTAL_FRAMES - 20, duration: 370 },
-  closing:  { from: 690 + DEMO_TOTAL_FRAMES - 20 + 350, duration: 330 },
+  hook:     { from: 0,   duration: 290 },      // narrator_hook = 271 frames
+  problem:  { from: 270, duration: 350 },      // narrator_problem = 320 frames
+  reveal:   { from: 600, duration: 160 },      // no narrator
+  pipeline: { from: 740, duration: 390 },      // narrator_pipeline = 365 frames
+  demo:     { from: 1110, duration: DEMO_TOTAL_FRAMES },
+  techUse:  { from: 1110 + DEMO_TOTAL_FRAMES + 30, duration: 370 },  // +30 gap after demo
+  closing:  { from: 1110 + DEMO_TOTAL_FRAMES + 30 + 350, duration: 280 },
 };
 
 export const TOTAL_DURATION =
   SCENES.closing.from + SCENES.closing.duration;
 
-// Narrator voiceover timing — matches scene starts
+// Narrator voiceover — durations from actual ffprobe measurements
 const NARRATOR = [
-  { file: "narrator_hook.mp3",     from: 5,                    dur: 120 },
-  { file: "narrator_problem.mp3",  from: SCENES.problem.from + 5,  dur: 200 },
-  { file: "narrator_pipeline.mp3", from: SCENES.pipeline.from + 5, dur: 220 },
-  { file: "narrator_closing.mp3",  from: SCENES.closing.from + 5,  dur: 280 },
+  { file: "narrator_hook.mp3",     from: 5,                        dur: 280 },
+  { file: "narrator_problem.mp3",  from: SCENES.problem.from + 5,  dur: 330 },
+  { file: "narrator_pipeline.mp3", from: SCENES.pipeline.from + 5, dur: 375 },
+  { file: "narrator_closing.mp3",  from: SCENES.closing.from + 5,  dur: 265 },
 ];
 
 export const CrossTalkVideo: React.FC = () => {

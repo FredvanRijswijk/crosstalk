@@ -57,13 +57,13 @@ export const DemoScene: React.FC = () => {
         delay={DEMO_DELAY}
       />
 
-      {/* Audio: original plays, then translation after gap */}
+      {/* Audio: generous durationInFrames to prevent cutoff */}
       {lines.map((line, i) => (
         <React.Fragment key={i}>
-          <Sequence from={line.delay + DEMO_DELAY} durationInFrames={line.origDur + 15} layout="none">
+          <Sequence from={line.delay + DEMO_DELAY} durationInFrames={line.origDur + 30} layout="none">
             <Audio src={staticFile(`audio/${line.audioOriginal}`)} volume={0.8} />
           </Sequence>
-          <Sequence from={line.translationStart + DEMO_DELAY} durationInFrames={line.transDur + 15} layout="none">
+          <Sequence from={line.translationStart + DEMO_DELAY} durationInFrames={line.transDur + 30} layout="none">
             <Audio src={staticFile(`audio/${line.audioTranslation}`)} volume={0.7} />
           </Sequence>
         </React.Fragment>

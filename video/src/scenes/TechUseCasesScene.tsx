@@ -17,10 +17,60 @@ export const TechUseCasesScene: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
+  // "Powered by (Fred)" joke — shows first, then real tech fades in
+  const FRED_DURATION = 70; // ~2.3s on screen
+  const fredOpacity = interpolate(frame, [5, 15, FRED_DURATION - 15, FRED_DURATION], [0, 1, 1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const fredScale = spring({ frame: Math.max(0, frame - 5), fps, config: { damping: 12 } });
+
+  // Real content starts after Fred joke
+  const realStart = FRED_DURATION;
+  const realFrame = Math.max(0, frame - realStart);
+
   const fadeOut = interpolate(frame, [320, 350], [1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
+
+  // Fred joke phase
+  if (frame < FRED_DURATION) {
+    return (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          background: COLORS.bg,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 24,
+          opacity: fredOpacity,
+        }}
+      >
+        <div style={{
+          fontFamily: FONTS.sans,
+          fontSize: 42,
+          fontWeight: 600,
+          color: COLORS.fg,
+          transform: `scale(${interpolate(fredScale, [0, 1], [0.8, 1])})`,
+        }}>
+          Powered by
+        </div>
+        <div style={{
+          fontFamily: FONTS.sans,
+          fontSize: 64,
+          fontWeight: 700,
+          color: COLORS.accent,
+          transform: `scale(${interpolate(fredScale, [0, 1], [0.6, 1])})`,
+        }}>
+          Fred
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -41,7 +91,7 @@ export const TechUseCasesScene: React.FC = () => {
       <div style={{ display: "flex", gap: 32 }}>
         {TECH.map((tech, i) => {
           const cardDelay = 15 + i * 15;
-          const f = Math.max(0, frame - cardDelay);
+          const f = Math.max(0, realFrame - cardDelay);
           const scale = spring({ frame: f, fps, config: { damping: 15 } });
           const opacity = interpolate(f, [0, 12], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 
@@ -90,7 +140,7 @@ export const TechUseCasesScene: React.FC = () => {
         style={{
           display: "flex",
           gap: 12,
-          opacity: interpolate(frame, [70, 90], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
+          opacity: interpolate(realFrame, [70, 90], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
         }}
       >
         <div style={{ fontFamily: FONTS.sans, fontSize: 15, color: COLORS.muted, display: "flex", alignItems: "center", marginRight: 8 }}>
@@ -98,7 +148,7 @@ export const TechUseCasesScene: React.FC = () => {
         </div>
         {USE_CASES.map((uc, i) => {
           const pillDelay = 80 + i * 6;
-          const f = Math.max(0, frame - pillDelay);
+          const f = Math.max(0, realFrame - pillDelay);
           const s = spring({ frame: f, fps, config: { damping: 12 } });
           return (
             <div
