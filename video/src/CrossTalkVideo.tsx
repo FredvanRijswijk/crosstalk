@@ -28,12 +28,14 @@ const SCENES = {
 export const TOTAL_DURATION =
   SCENES.closing.from + SCENES.closing.duration;
 
-// Narrator voiceover — durations from actual ffprobe measurements
+// Narrator voiceover — durations from actual ffprobe measurements (+ narrator_fred/tech TBD)
 const NARRATOR = [
-  { file: "narrator_hook.mp3",     from: 5,                        dur: 280 },
-  { file: "narrator_problem.mp3",  from: SCENES.problem.from + 5,  dur: 330 },
-  { file: "narrator_pipeline.mp3", from: SCENES.pipeline.from + 5, dur: 375 },
-  { file: "narrator_closing.mp3",  from: SCENES.closing.from + 5,  dur: 265 },
+  { file: "narrator_hook.mp3",     from: 5,                         dur: 280 },
+  { file: "narrator_problem.mp3",  from: SCENES.problem.from + 5,   dur: 330 },
+  { file: "narrator_pipeline.mp3", from: SCENES.pipeline.from + 5,  dur: 375 },
+  { file: "narrator_fred.mp3",     from: SCENES.techUse.from + 5,   dur: 90 },   // "Powered by Fred"
+  { file: "narrator_tech.mp3",     from: SCENES.techUse.from + 75,  dur: 120 },  // "Powered by Mistral AI, ElevenLabs, and Next.js"
+  { file: "narrator_closing.mp3",  from: SCENES.closing.from + 5,   dur: 265 },
 ];
 
 export const CrossTalkVideo: React.FC = () => {

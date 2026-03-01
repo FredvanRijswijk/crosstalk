@@ -131,6 +131,16 @@ const NARRATOR_LINES: Line[] = [
     voice: NARRATOR,
     file: "narrator_closing.mp3",
   },
+  {
+    text: "Powered by Fred.",
+    voice: NARRATOR,
+    file: "narrator_fred.mp3",
+  },
+  {
+    text: "Powered by Mistral AI, ElevenLabs, and Next.js.",
+    voice: NARRATOR,
+    file: "narrator_tech.mp3",
+  },
 ];
 
 /* ── API call ── */
