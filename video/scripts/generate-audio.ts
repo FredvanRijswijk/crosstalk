@@ -14,8 +14,8 @@ if (!API_KEY) {
   process.exit(1);
 }
 
-const ADAM = "pNInz6obpgDQGcFmaJgB"; // male — Dutch originals
-const BELLA = "EXAVITQu4vr4xnSDxMaL"; // female — Spanish originals
+const ADAM = "pNInz6obpgDQGcFmaJgB"; // male — English doctor
+const BELLA = "EXAVITQu4vr4xnSDxMaL"; // female — Spanish patient
 const MODEL = "eleven_multilingual_v2";
 const OUT_DIR = join(__dirname, "..", "public", "audio");
 
@@ -26,20 +26,22 @@ interface Line {
 }
 
 const LINES: Line[] = [
-  // Originals
-  { text: "Hallo, ik ben Dr. van den Berg. Wat kan ik voor u doen?", voice: ADAM, file: "nl_01.mp3" },
+  // English originals (doctor)
+  { text: "Hello, I'm Dr. Thompson. How can I help you today?", voice: ADAM, file: "en_01.mp3" },
+  { text: "Can you point to where exactly it hurts?", voice: ADAM, file: "en_03.mp3" },
+  { text: "Are you currently taking any medication?", voice: ADAM, file: "en_05.mp3" },
+  // Spanish originals (patient)
   { text: "Buenos días doctor. Tengo un dolor fuerte en el pecho desde ayer.", voice: BELLA, file: "es_02.mp3" },
-  { text: "Kunt u aanwijzen waar precies de pijn zit?", voice: ADAM, file: "nl_03.mp3" },
   { text: "Aquí, en el lado izquierdo. Se siente como presión.", voice: BELLA, file: "es_04.mp3" },
-  { text: "Neemt u op dit moment medicijnen?", voice: ADAM, file: "nl_05.mp3" },
   { text: "Sí, tomo metformina para la diabetes.", voice: BELLA, file: "es_06.mp3" },
-  // Translations
-  { text: "Hola, soy el Dr. van den Berg. ¿En qué puedo ayudarle?", voice: BELLA, file: "es_01.mp3" },
-  { text: "Goedemorgen dokter. Ik heb sinds gisteren sterke pijn op de borst.", voice: ADAM, file: "nl_02.mp3" },
+  // Spanish translations (of doctor's English)
+  { text: "Hola, soy el Dr. Thompson. ¿En qué puedo ayudarle hoy?", voice: BELLA, file: "es_01.mp3" },
   { text: "¿Puede señalar dónde exactamente siente el dolor?", voice: BELLA, file: "es_03.mp3" },
-  { text: "Hier, aan de linkerkant. Het voelt als druk.", voice: ADAM, file: "nl_04.mp3" },
   { text: "¿Está tomando algún medicamento en este momento?", voice: BELLA, file: "es_05.mp3" },
-  { text: "Ja, ik neem metformine voor diabetes.", voice: ADAM, file: "nl_06.mp3" },
+  // English translations (of patient's Spanish)
+  { text: "Good morning doctor. I've had a sharp pain in my chest since yesterday.", voice: ADAM, file: "en_02.mp3" },
+  { text: "Here, on the left side. It feels like pressure.", voice: ADAM, file: "en_04.mp3" },
+  { text: "Yes, I take metformin for diabetes.", voice: ADAM, file: "en_06.mp3" },
 ];
 
 async function generateAudio(line: Line): Promise<void> {
@@ -66,10 +68,10 @@ async function generateAudio(line: Line): Promise<void> {
     throw new Error(`ElevenLabs error ${res.status} for ${line.file}: ${err}`);
   }
 
-  const buffer = Buffer.from(await res.arrayBuffer());
+  const buffer = new Uint8Array(await res.arrayBuffer());
   const outPath = join(OUT_DIR, line.file);
   writeFileSync(outPath, buffer);
-  console.log(`✓ ${line.file} (${buffer.length} bytes)`);
+  console.log(`✓ ${line.file} (${buffer.byteLength} bytes)`);
 }
 
 async function main() {

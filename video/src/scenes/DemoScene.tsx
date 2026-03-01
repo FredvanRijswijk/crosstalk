@@ -7,18 +7,18 @@ import { FadeInText } from "../components/AnimatedText";
 // Estimated audio durations in frames (30fps). ~3-4s per sentence.
 // These are conservative estimates; Remotion will just stop if clip ends early.
 const AUDIO_DURATIONS: Record<string, number> = {
-  "nl_01.mp3": 105, // "Hallo, ik ben Dr. van den Berg..."
+  "en_01.mp3": 100, // "Hello, I'm Dr. Thompson..."
   "es_01.mp3": 105, // translation
   "es_02.mp3": 120, // "Buenos días doctor..."
-  "nl_02.mp3": 120, // translation
-  "nl_03.mp3": 90,  // "Kunt u aanwijzen..."
+  "en_02.mp3": 110, // translation
+  "en_03.mp3": 85,  // "Can you point to where..."
   "es_03.mp3": 90,  // translation
   "es_04.mp3": 100, // "Aquí, en el lado izquierdo..."
-  "nl_04.mp3": 90,  // translation
-  "nl_05.mp3": 80,  // "Neemt u op dit moment..."
+  "en_04.mp3": 85,  // translation
+  "en_05.mp3": 80,  // "Are you currently taking..."
   "es_05.mp3": 90,  // translation
   "es_06.mp3": 80,  // "Sí, tomo metformina..."
-  "nl_06.mp3": 80,  // translation
+  "en_06.mp3": 75,  // translation
 };
 
 const GAP = 15; // ~0.5s gap between original and translation
@@ -29,52 +29,52 @@ const MSG_GAP = 25; // ~0.8s gap between conversation turns
 function buildConversation() {
   const raw = [
     {
-      text: "Hallo, ik ben Dr. van den Berg. Wat kan ik voor u doen?",
-      translation: "Hola, soy el Dr. van den Berg. ¿En qué puedo ayudarle?",
+      text: "Hello, I'm Dr. Thompson. How can I help you today?",
+      translation: "Hola, soy el Dr. Thompson. ¿En qué puedo ayudarle hoy?",
       side: "left" as const,
       latency: 340,
-      audioOriginal: "nl_01.mp3",
+      audioOriginal: "en_01.mp3",
       audioTranslation: "es_01.mp3",
     },
     {
       text: "Buenos días doctor. Tengo un dolor fuerte en el pecho desde ayer.",
-      translation: "Goedemorgen dokter. Ik heb sinds gisteren sterke pijn op de borst.",
+      translation: "Good morning doctor. I've had a sharp pain in my chest since yesterday.",
       side: "right" as const,
       latency: 290,
       audioOriginal: "es_02.mp3",
-      audioTranslation: "nl_02.mp3",
+      audioTranslation: "en_02.mp3",
     },
     {
-      text: "Kunt u aanwijzen waar precies de pijn zit?",
+      text: "Can you point to where exactly it hurts?",
       translation: "¿Puede señalar dónde exactamente siente el dolor?",
       side: "left" as const,
       latency: 260,
-      audioOriginal: "nl_03.mp3",
+      audioOriginal: "en_03.mp3",
       audioTranslation: "es_03.mp3",
     },
     {
       text: "Aquí, en el lado izquierdo. Se siente como presión.",
-      translation: "Hier, aan de linkerkant. Het voelt als druk.",
+      translation: "Here, on the left side. It feels like pressure.",
       side: "right" as const,
       latency: 310,
       audioOriginal: "es_04.mp3",
-      audioTranslation: "nl_04.mp3",
+      audioTranslation: "en_04.mp3",
     },
     {
-      text: "Neemt u op dit moment medicijnen?",
+      text: "Are you currently taking any medication?",
       translation: "¿Está tomando algún medicamento en este momento?",
       side: "left" as const,
       latency: 280,
-      audioOriginal: "nl_05.mp3",
+      audioOriginal: "en_05.mp3",
       audioTranslation: "es_05.mp3",
     },
     {
       text: "Sí, tomo metformina para la diabetes.",
-      translation: "Ja, ik neem metformine voor diabetes.",
+      translation: "Yes, I take metformin for diabetes.",
       side: "right" as const,
       latency: 250,
       audioOriginal: "es_06.mp3",
-      audioTranslation: "nl_06.mp3",
+      audioTranslation: "en_06.mp3",
     },
   ];
 
@@ -136,9 +136,9 @@ export const DemoScene: React.FC = () => {
 
       <DualScreen
         messages={CONVERSATION}
-        leftLang="NL — Dutch"
+        leftLang="EN — English"
         rightLang="ES — Spanish"
-        leftLabel="Dr. van den Berg"
+        leftLabel="Dr. Thompson"
         rightLabel="Patient"
         delay={DEMO_DELAY}
       />
